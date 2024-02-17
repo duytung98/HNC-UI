@@ -1,0 +1,13 @@
+export { GlobalStyle } from './GlobalStyle';
+export { Button } from './Button';
+export { Menu, MenuItem } from './Menu';
+export { Pagination } from './Pagination';
+export { Table } from './Table';
+export { ModalLookupProfile } from './ModaLookupProfile';
+export { ModalResultAdmission } from './ModalResultAdmission';
+export { Loading } from './Loading';
+export { FormDetailAdmissionProfile } from './FormDetailAdmissionProfile';
+export { FormEditAdmissionProfile } from './FormEditAdmissionProfile';
+export { FormLookupAdmissionProfile } from './FormLookupAdmissionProfile';
+export { ModalAlert } from './ModalAlert';
+export { Image } from './Image';
