@@ -3,7 +3,7 @@ import styles from './ToastMessger.module.scss';
 import { AlertCircle, Close } from '../Icon';
 
 function ToastMessger({ show, onClose }) {
-    // console.log(show);
+    console.log(show);
     if (!show) return null;
 
     const handleClick = (e) => {
@@ -19,7 +19,7 @@ function ToastMessger({ show, onClose }) {
                 <AlertCircle className={styles.toast__svg} />
             </div>
             <div className={styles.toast__content}>
-                <p className={styles.toast__type}>Không tìm thấy hồ sơ</p>
+                <p className={styles.toast__type}>Không tìm thấy thông tin</p>
                 <p className={styles.toast__message}>
                     Vui lòng kiểm tra lại thông tin số điện thoại, email, CCCD/CMND!
                 </p>

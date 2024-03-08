@@ -1,72 +1,40 @@
 import classnames from 'classnames/bind';
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useSelector, useDispatch } from 'react-redux';
 
 import { useDebounce } from '~/hooks';
+import { userSelector, loginSuccess } from '~/store';
 import styles from './AdmissionAcceptedListPage.module.scss';
-import { readDataFromFileExcel, exportDataToFileExcel } from '~/utils';
-import { MailIcon, SearchIcon, DownloadIcon, ChevronDownIcon, ExcelIcon } from '~/components/Icon';
-import { Button, Pagination, Table, Loading, FormDetailAdmissionProfile, FormEditAdmissionProfile } from '~/components';
+import {
+    exportDataToFileExcel, createAxios,
+} from '~/utils';
+import { getMajorListService, admissionAcceptedListService, deleteProfileService } from '~/services';
+import { SearchIcon, ChevronDownIcon, ExcelIcon } from '~/components/Icon';
+import {
+    Pagination, Table, LoadingLine,
+    FormDetailAdmissionProfile, FormEditAdmissionProfile,
+    ModalAlertOneButton
+}
+    from '~/components';
 
 const cx = classnames.bind(styles);
 const functionsExportList = [];
-
-const example_admissionAcceptedList = [
-    {
-        id: 1,
-        profileCode: 'HS001',
-        firstName: 'Nguyễn Đức',
-        lastName: 'A',
-        birthDay: '17/06/2011',
-        CCCD: '123dmkafanfkadsf',
-        phone: '1234456778',
-        email: 'nguyenvana@gmail.com',
-        fieldOfStudy: 'Dược',
-        status: true,
-    },
-    {
-        id: 2,
-        profileCode: 'HS002',
-        firstName: 'Nguyễn Trí',
-        lastName: 'B',
-        birthDay: '17/06/2021',
-        CCCD: '123dmkafanfkadsf',
-        phone: '1234456778',
-        email: 'nguyenvanb@gmail.com',
-        fieldOfStudy: 'Công nghệ thông tin',
-        status: true,
-    },
-    {
-        id: 3,
-        profileCode: 'HS003',
-        firstName: 'Nguyễn Văn',
-        lastName: 'C',
-        birthDay: '17/06/2012',
-        CCCD: '123dmkafanfkadsf',
-        phone: '1234456778',
-        email: 'nguyenvanc@gmail.com',
-        fieldOfStudy: 'Công nghệ ô tô',
-        status: true,
-    },
-];
 const fieldsOfTable = [
     {
-        property: 'id',
-        alias: 'STT',
-    },
-    {
-        property: 'profileCode',
+        property: 'MaHoSo',
         alias: 'Mã Hồ sơ',
     },
     {
-        property: 'firstName',
+        property: 'HoDem',
         alias: 'Họ đệm',
     },
     {
-        property: 'lastName',
+        property: 'Ten',
         alias: 'Tên',
     },
     {
-        property: 'birthDay',
+        property: 'NgayThangNamSinh',
         alias: 'Ngày sinh',
     },
     {
@@ -74,43 +42,38 @@ const fieldsOfTable = [
         alias: 'Số CMND/CCCD',
     },
     {
-        property: 'phone',
+        property: 'SDT',
         alias: 'Điện thoại',
     },
     {
-        property: 'email',
+        property: 'Email',
         alias: 'Email',
     },
     {
-        property: 'fieldOfStudy',
+        property: 'NganhHoc',
         alias: 'Ngành học',
     },
     {
-        property: 'status',
+        property: 'TrangThai',
         alias: 'Trạng Thái',
     },
 ];
 
-//Danh sách ngành học
-const listOfMajors = [
-    {
-        id: 1,
-        name: 'Dược',
-    },
-    {
-        id: 2,
-        name: 'Điều dưỡng',
-    },
-];
-
 function AdmissionAcceptedListPage() {
-    const importDataInputRef = useRef(null);
-    const formDetailProfileRef = useRef(null);
-    const formEditInforProfileRef = useRef(null);
+    const navigate = useNavigate();
+    const dispatch = useDispatch();
 
-    const [admissionAcceptedList, setAdmissionAcceptedList] = useState(example_admissionAcceptedList);
+    const [detailing, setDetailing] = useState(false);
+    const [deleting, setDeleting] = useState(false);
+    const [deleteMessage, setDeleteMessage] = useState('');
+    const [editing, setEditing] = useState(false);
+    const user = useSelector(userSelector);
+    const requestJWT = createAxios(user, dispatch, loginSuccess)
+
+    const [admissionAcceptedList, setAdmissionAcceptedList] = useState([]);
     const [fieldOfStudy, setFieldOfStudy] = useState('');
     const [valueSearch, setValueSearch] = useState('');
+    const [majorList, setMajorList] = useState([]);
     const searchDebounce = useDebounce(valueSearch, 500); //0.5s
     const [loading, setLoading] = useState(false);
     const [currentAdmissionAcceptedList, setCurrentAdmissionAcceptedList] = useState([]);
@@ -118,8 +81,8 @@ function AdmissionAcceptedListPage() {
     const [maHS, setMaHS] = useState('');
 
     const [pagination, setPagination] = useState({
-        totalPerPages: 0, // default 50
-        currentPage: 0, //Default page to 1
+        totalPerPages: 50, // default 50
+        currentPage: 1, //Default page to 1
         totalPages: 0, //Default 0
         totalPerInDB: 0, //Default 0
     });
@@ -127,17 +90,39 @@ function AdmissionAcceptedListPage() {
     // Call api lấy danh sách hồ sơ trúng tuyển
     useEffect(() => {
         setLoading(true);
-        console.log('Call api');
-        setCurrentAdmissionAcceptedList(admissionAcceptedList);
-        setPagination({
-            totalPages: Math.ceil(admissionAcceptedList.length / 5),
-            currentPage: 1,
-            totalPerInDB: admissionAcceptedList.length,
-            totalPerPages: 5,
-        });
+        const getAdmissionAcceptedList = async (access_token, request) => {
+            try {
+                const res = await admissionAcceptedListService(access_token, request) || [];
+                if (res?.error) return navigate('/500-ServerError');
+                setAdmissionAcceptedList(res);
+                setCurrentAdmissionAcceptedList(res);
+                setPagination({
+                    totalPages: Math.ceil(res.length / 50),
+                    currentPage: 1,
+                    totalPerInDB: res.length,
+                    totalPerPages: 50,
+                });
+            } catch (e) {
+                navigate('/500-ServerError');
+            }
+        }
+        getAdmissionAcceptedList(user?.access_token, requestJWT);
         setLoading(false);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    // Call api lấy danh sách ngành học;
+    useEffect(() => {
+        const getMajorList = async () => {
+            try {
+                const list = await getMajorListService();
+                setMajorList(list);
+            } catch (e) {
+                navigate('/500-ServerError');
+            }
+        }
+        getMajorList();
+    }, [navigate])
 
     //Xử lý lọc các bản ghi có giá trị khớp với valueSearh và fieldOfStudy
     useEffect(() => {
@@ -147,24 +132,24 @@ function AdmissionAcceptedListPage() {
                 return true;
             }
 
-            let fullName = admission?.firstName + ' ' + admission?.lastName;
+            let fullName = admission?.HoDem + ' ' + admission?.Ten;
             if (!fieldOfStudy) {
                 return (
-                    admission?.profileCode?.toLowerCase().includes(searchDebounce.trim().toLowerCase()) ||
-                    admission?.phone?.toLowerCase().includes(searchDebounce.trim().toLowerCase()) ||
+                    admission?.MaHoSo?.toLowerCase().includes(searchDebounce.trim().toLowerCase()) ||
+                    admission?.SDT?.toLowerCase().includes(searchDebounce.trim().toLowerCase()) ||
                     admission?.CCCD?.toLowerCase().includes(searchDebounce.trim().toLowerCase()) ||
                     fullName.toLowerCase().includes(searchDebounce.trim().toLowerCase()) ||
-                    admission?.email.toLowerCase().includes(searchDebounce.trim().toLowerCase())
+                    admission?.Email.toLowerCase().includes(searchDebounce.trim().toLowerCase())
                 );
             }
 
             return (
-                admission?.fieldOfStudy?.toLowerCase().includes(fieldOfStudy.trim().toLowerCase()) &&
-                (admission?.profileCode?.toLowerCase().includes(searchDebounce.trim().toLowerCase()) ||
-                    admission?.phone?.toLowerCase().includes(searchDebounce.trim().toLowerCase()) ||
+                admission?.nganh?.TenNganh?.toLowerCase().includes(fieldOfStudy.trim().toLowerCase()) &&
+                (admission?.MaHoSo?.toLowerCase().includes(searchDebounce.trim().toLowerCase()) ||
+                    admission?.SDT?.toLowerCase().includes(searchDebounce.trim().toLowerCase()) ||
                     admission?.CCCD?.toLowerCase().includes(searchDebounce.trim().toLowerCase()) ||
                     fullName.toLowerCase().includes(searchDebounce.trim().toLowerCase()) ||
-                    admission?.email?.toLowerCase().includes(searchDebounce.trim().toLowerCase()))
+                    admission?.Email?.toLowerCase().includes(searchDebounce.trim().toLowerCase()))
             );
         });
         setCurrentAdmissionAcceptedList(acceptedListFillted);
@@ -181,13 +166,17 @@ function AdmissionAcceptedListPage() {
     //Xử lý phân trang
     useEffect(() => {
         setLoading(true);
-        //Danh sách hồ sơ giới hạn trên một page
-        let indexLastOfPost = pagination.currentPage * pagination.totalPerPages;
-        let indexFirstOfPost = indexLastOfPost - pagination.totalPerPages;
-        let data = currentAdmissionAcceptedList.slice(indexFirstOfPost, indexLastOfPost);
-        setAdmissionAcceptedListShow(data);
+        try {
+            //Danh sách hồ sơ giới hạn trên một page
+            let indexLastOfPost = pagination.currentPage * pagination.totalPerPages;
+            let indexFirstOfPost = indexLastOfPost - pagination.totalPerPages;
+            let data = currentAdmissionAcceptedList.slice(indexFirstOfPost, indexLastOfPost);
+            setAdmissionAcceptedListShow(data);
+        } catch (e) {
+            navigate('/500-ServerError');
+        }
         setLoading(false);
-    }, [pagination.currentPage, pagination.totalPerPages, currentAdmissionAcceptedList]);
+    }, [pagination.currentPage, pagination.totalPerPages, currentAdmissionAcceptedList, navigate]);
 
     //Xử lý change page khi use click vào một trang khác
     const onChangePage = (number) => {
@@ -210,40 +199,36 @@ function AdmissionAcceptedListPage() {
         setFieldOfStudy(value);
     }
 
-    // xử lý import data từ file excel
-    const handleImportData = async (e) => {
-        setLoading(true);
-        const file = e.target.files[0];
-        e.target.value = null;
-        await handleReadDataFile(file);
-        setLoading(false);
-    };
-
-    // xử lý đọc content từ file excel
-    const handleReadDataFile = async (file) => {
-        try {
-            const data = await readDataFromFileExcel(file);
-            //Sau khi đọc thành công data gửi lên và chuyển đổi thành kiểu dữ liệu JS tiến hành upate state
-            // và đồng thời gửi data lên server để lưu trữ;
-            const newAdmissionAcceptedList = [...admissionAcceptedList, ...data];
-            setAdmissionAcceptedList(newAdmissionAcceptedList);
-            setPagination({
-                totalPages: Math.ceil(newAdmissionAcceptedList.length / 5),
-                currentPage: 1,
-                totalPerInDB: newAdmissionAcceptedList.length,
-                totalPerPages: 5,
-            });
-            //call api để lưu trữ data
-        } catch (err) {
-            console.error(err);
-        }
-    };
-
     // xử lý export data ra file excel
     const handleExportData = async (e) => {
         try {
             setLoading(true);
-            await exportDataToFileExcel(admissionAcceptedList);
+            const dataFormated = currentAdmissionAcceptedList.map((profile, index) => {
+                console.log(profile?.GioiTinh);
+                return {
+                    STT: index + 1,
+                    MaHoSo: profile?.MaHoSo,
+                    HoDem: profile?.HoDem,
+                    Ten: profile?.Ten,
+                    GioiTinh: profile?.GioiTinh,
+                    NgaySinh: new Date(profile?.NgayThangNamSinh),
+                    CCCD: profile?.CCCD,
+                    SDT: profile?.SDT,
+                    Email: profile?.Email,
+                    HinhThuc: profile?.xet_tuyen?.HinhThuc,
+                    Nganh: profile?.nganh?.TenNganh,
+                    DiemMon1: profile?.xet_tuyen?.DiemMon1,
+                    DiemMon2: profile?.xet_tuyen?.DiemMon2,
+                    DiemMon3: profile?.xet_tuyen?.DiemMon3,
+                    NgayXetTuyen: new Date(profile?.NgayNop),
+                    Link: process.env.REACT_APP_DOMAIN + 'tracuuhoso/' + profile?.MaHoSo
+                }
+            })
+
+            fieldOfStudy ?
+                await exportDataToFileExcel(dataFormated, 'Danh sách hồ sơ trúng tuyển theo: ' + fieldOfStudy)
+                :
+                await exportDataToFileExcel(dataFormated, 'Danh sách hồ sơ trúng tuyển');
             setLoading(false);
         } catch (err) {
             console.error(err);
@@ -251,37 +236,74 @@ function AdmissionAcceptedListPage() {
     };
 
     //Hiển thị thông tin chi tiết hồ sơ xét tuyển
-    const handleShowInforDetail = useCallback((maHS) => {
-        formDetailProfileRef.current.style.display = 'block';
+    const onShowInforDetail = useCallback((maHS) => {
+        setDetailing(true);
         setMaHS(maHS);
     }, []);
 
     //Đóng form hiển thị thông tin chi tiết hồ sơ xét tuyển
-    const handleCloseFormInforDetail = useCallback(() => {
-        formDetailProfileRef.current.scrollTop = 0;
-        formDetailProfileRef.current.style.display = 'none';
+    const onCloseFormInforDetail = useCallback(() => {
+        setDetailing(false);
     }, []);
 
     //Hiển thị form chỉnh sửa thông tin hồ sơ
-    const handleShowFormEditInforProfile = useCallback((maHS) => {
-        formEditInforProfileRef.current.style.display = 'block';
+    const onShowFormEditInforProfile = useCallback((maHS) => {
+        setEditing(true);
         setMaHS(maHS);
     }, []);
 
     //Đóng form chỉnh sửa thông tin hồ sơ;
-    const handleCloseFormEditInforProfile = useCallback(() => {
-        formEditInforProfileRef.current.scrollTop = 0;
-        formEditInforProfileRef.current.style.display = 'none';
-    }, []);
+    //Đóng form chỉnh sửa thông tin hồ sơ;
+    const onCloseFormEditInforProfile = useCallback((statusEdit = false) => {
+        if (!statusEdit) {
+            setEditing(false);
+            return;
+        }
+        // cập nhật thông tin của hồ sơ mới update
+        const getAdmissionAcceptedList = async () => {
+            const admission = await admissionAcceptedListService(user?.access_token, requestJWT);
+            setAdmissionAcceptedList(admission);
+        }
+        getAdmissionAcceptedList();
+        setEditing(false);
+    }, [requestJWT, user?.access_token]);
+
+    const handleDeleteProfile = useCallback((maHS) => {
+        try {
+            setLoading(true);
+            const deleteProfile = async (maHS) => {
+                const res = await deleteProfileService(maHS, user?.access_token, requestJWT);
+                if (res?.success) {
+                    const newAdmissionAcceptedList = (admissionAcceptedList.length >= 2) ?
+                        admissionAcceptedList?.filter(
+                            (admission) => maHS !== admission?.MaHoSo)
+                        : [];
+                    setAdmissionAcceptedList(newAdmissionAcceptedList);
+                    setDeleteMessage('Bạn đã thành công!')
+                    setDeleting(true);
+                    return;
+                }
+
+                if (res?.error) {
+                    setDeleteMessage('Xóa thất bại, Có một sự cố đã xảy ra!')
+                    setDeleting(true);
+                }
+            }
+            deleteProfile(maHS)
+            setLoading(false);
+        } catch (e) {
+            navigate('/500-ServerError');
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user, requestJWT])
 
     return (
         <div className={cx('admissionAcceptedList-page')}>
             <div className={cx('admissionAcceptedList-title', 'py-3')}>
                 <h2 className={cx('admissionAcceptedList-title-text', 'font-bold text-center text-2xl')}>
                     Tổng số hồ sơ đã trúng tuyển:
-                    <span className={cx('admissionAcceptedList-amount', 'text-red-600')}>
-                        {admissionAcceptedList.length} </span>
-                    hồ sơ
+                    <span className={cx('admissionAcceptedList-amount', 'text-red-600')}
+                    > {admissionAcceptedList.length} </span>hồ sơ
                 </h2>
                 <p className={cx('admissionAcceptedList-title-description', 'text-center text-[18px] mt-1')}>
                     Danh sách hồ sơ đã trúng tuyển bằng học bạ THPT - Tuyển sinh năm học {new Date().getFullYear()}
@@ -289,28 +311,6 @@ function AdmissionAcceptedListPage() {
             </div>
             <div className={cx('admissionAcceptedList-function', 'flex justify-center p-5 mb-5')}>
                 <div className={cx('admissionAcceptedList-function-group', 'flex')}>
-                    <Button primary className={cx('function-btn')} iconLeft={<MailIcon />}>
-                        Gửi Email
-                    </Button>
-                    <div className={cx('function-import', 'ml-2')}>
-                        <Button
-                            outline
-                            iconLeft={<DownloadIcon />}
-                            onClick={() => {
-                                importDataInputRef.current.click();
-                            }}
-                        >
-                            Import
-                        </Button>
-                        <input
-                            type="file"
-                            accept=".xlsx"
-                            name="data"
-                            hidden
-                            ref={importDataInputRef}
-                            onChange={handleImportData}
-                        />
-                    </div>
                     <div className={cx('function-export')}>
                         <h4 className={cx('function-export-item', 'current')} onClick={handleExportData}>
                             <ExcelIcon className={cx('function-export-icon')} />
@@ -331,7 +331,7 @@ function AdmissionAcceptedListPage() {
                     </div>
                 </div>
                 <div className={cx('admissionAcceptedList-function-search', 'flex items-center')}>
-                    <button className={cx('btn-search', 'px-3 hover:bg-[#ccc] h-full')}>
+                    <button className={cx('btn-search', 'px-3 h-full cursor-default')}>
                         <SearchIcon />
                     </button>
                     <input
@@ -349,19 +349,6 @@ function AdmissionAcceptedListPage() {
                             {fieldOfStudy ? fieldOfStudy : 'Chọn ngành học'}
                         </h4>
                         <ul className={cx('function-filter-select-list')}>
-                            {listOfMajors.length > 0 &&
-                                listOfMajors.map((item, index) => {
-                                    return (
-                                        <li
-                                            className={cx('function-filter-select-item')}
-                                            key={index}
-                                            value={item.name}
-                                            onClick={handleOnChangeFieldOfStudy}
-                                        >
-                                            {item.name}
-                                        </li>
-                                    );
-                                })}
                             <li
                                 className={cx('function-filter-select-item')}
                                 value=""
@@ -369,6 +356,19 @@ function AdmissionAcceptedListPage() {
                             >
                                 Tất cả
                             </li>
+                            {majorList.length > 0 &&
+                                majorList.map((item, index) => {
+                                    return (
+                                        <li
+                                            className={cx('function-filter-select-item')}
+                                            key={index}
+                                            value={item?.TenNganh}
+                                            onClick={handleOnChangeFieldOfStudy}
+                                        >
+                                            {item.TenNganh}
+                                        </li>
+                                    );
+                                })}
                         </ul>
                         <ChevronDownIcon />
                     </div>
@@ -379,8 +379,9 @@ function AdmissionAcceptedListPage() {
                     className={cx('admissionAcceptedList-table')}
                     fields={fieldsOfTable}
                     data={admissionAcceptedListShow}
-                    onShowInforDetail={handleShowInforDetail}
-                    onShowFormEditInfor={handleShowFormEditInforProfile}
+                    onShowInforDetail={onShowInforDetail}
+                    onShowFormEditInfor={onShowFormEditInforProfile}
+                    onClickDeleting={handleDeleteProfile}
                 />
             </div>
             {
@@ -389,17 +390,32 @@ function AdmissionAcceptedListPage() {
                     <Pagination onChangePage={onChangePage} pagination={pagination} />
                 </div>
             }
-            <Loading loading={loading} />
-            <div className={cx('form-detail')} ref={formDetailProfileRef} id="detail">
-                <FormDetailAdmissionProfile
-                    onClose={handleCloseFormInforDetail}
-                    maHS={maHS}
-                    onShowEdit={handleShowFormEditInforProfile}
-                />
-            </div>
-            <div className={cx('form-editInfor')} ref={formEditInforProfileRef} id="edit">
-                <FormEditAdmissionProfile onCloseForm={handleCloseFormEditInforProfile} maHS={maHS} />
-            </div>
+            <LoadingLine loading={loading} />
+            {detailing &&
+                (<div className={cx('form-detail')}>
+                    <FormDetailAdmissionProfile
+                        maHS={maHS}
+                        onClose={onCloseFormInforDetail}
+                        onShowEdit={onShowFormEditInforProfile}
+                    />
+                </div>)
+            }
+            {editing &&
+                (<div className={cx('form-editInfor')}>
+                    <FormEditAdmissionProfile
+                        onCloseForm={onCloseFormEditInforProfile}
+                        maHS={maHS}
+                    />
+                </div>)
+            }
+            <ModalAlertOneButton
+                message={deleteMessage}
+                enabled={deleting}
+                onClick={() => {
+                    setDeleting(false)
+                    setDeleteMessage('')
+                }}
+            />
         </div>
     );
 }

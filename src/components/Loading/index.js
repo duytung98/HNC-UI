@@ -1,1 +1,2 @@
-export { default as Loading } from './Loading';
+export { default as LoadingLine } from './LoadingLine';
+export { default as LoadingCricle } from './LoadingCircle';

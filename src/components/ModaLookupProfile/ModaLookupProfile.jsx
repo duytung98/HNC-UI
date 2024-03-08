@@ -1,144 +1,185 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import styles from './ModaLookupProfile.module.scss';
-import { Field, Form, Formik } from 'formik';
+import { useFormik } from 'formik';
 import * as Yup from 'yup';
-import ToastMessger from '../ToastMessger/ToastMessger';
+import { getDetailProfileClientService } from '~/services'
 
 function ModaLookupProfile({ isvisible, onClose }) {
-    const [showToast, setShowToast] = useState(false);
+  const navigate = useNavigate();
+  const [errors, setErrors] = useState(null);
 
-    if (!isvisible) return null;
+  // click ra ngoài thì  modal đóng
+  const handleClick = (e) => {
+    if (e.target.id === "wrapper") return onClose();
+  };
 
-    // click ra ngoài thì  modal đóng
-    const handleClick = (e) => {
-        if (e.target.id === 'wrapper') return onClose();
-    };
+  const handleApi = async (value) => {
+    const res = await getDetailProfileClientService(value);
+    if (res.message === "Không tìm thấy hồ sơ") {
+      setErrors(res.message);
+    } else {
+      navigate("/tracuuhoso/" + res.data.MaHoSo);
+    }
+  };
 
-    return (
-        <>
-            <div className={styles.modal} id="wrapper" onClick={handleClick}>
-                <div className={styles.modal__container}>
-                    {/* navbar */}
-                    <div className={styles.modal__container_nav}>
-                        <h3 className={styles.modal__nav_title}>Tra cứu thông tin hồ sơ đã nộp</h3>
-                        <button className={styles.modal__nav_close} onClick={() => onClose()}>
-                            {/* <CloseOutlinedIcon /> */} &times;
-                        </button>
-                    </div>
+  const isvalideNumber = (phone) => {
+    const phoneRegex = /^0[0-9]{9}$/;
+    if (phoneRegex.test(phone)) {
+      handleApi(phone);
+    } else {
+      setErrors("SĐT không hợp lệ!");
+    }
+  };
 
-                    {/* line */}
-                    <div className={styles.modal__nav_line}></div>
-                    {/* search */}
-                    <Formik
-                        initialValues={{
-                            number: '',
-                            info: '',
-                        }}
-                        // hàm submit
-                        onSubmit={(values, { resetForm, setErrors }) => {
-                            resetForm();
-                            console.log('🐬: ModaLookupProfile -> values', values);
+  const isvalideCCCD = (cccd) => {
+    const cccdRegex = /^[0-9]{12}$/;
+    if (cccdRegex.test(cccd)) {
+      handleApi(cccd);
+    } else {
+      setErrors("CCCD không hợp lệ!");
+    }
+  };
 
-                            // Định nghĩa schema Yup để kiểm tra lỗi
-                            const validationSchema = Yup.object({
-                                number: Yup.string().required('Chọn lại thông tin'),
-                                info: Yup.string().required('Nhập lại thông tin'),
-                            });
+  const isvalideMahoso = (mahoso) => {
+    const mahosoRegex = /^[0-9]{8}$/;
+    if (mahosoRegex.test(mahoso)) {
+      handleApi(mahoso);
+    } else {
+      setErrors("Mã hồ sơ không hợp lệ!");
+    }
+  };
 
-                            try {
-                                // Sử dụng hàm validateSync của Yup để kiểm tra lỗi
-                                validationSchema.validateSync(values, { abortEarly: false });
+  const isvalideEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (emailRegex.test(email)) {
+      handleApi(email);
+    } else {
+      setErrors("Email không hợp lệ!");
+    }
+  };
+  const handleSubmit = async (values) => {
+    if (!values.inputValue) {
+      setErrors("Vui lòng nhập thông tin!");
+      return;
+    }
 
-                                // Nếu không có lỗi validate, không hiển thị Toast
-                                setShowToast(false);
+    if (values.select === "email") {
+      isvalideEmail(values.inputValue);
+    } else if (values.select === "cccd") {
+      isvalideCCCD(values.inputValue);
+    } else if (values.select === "phonenumber") {
+      isvalideNumber(values.inputValue);
+    } else if (values.select === "mahoso") {
+      isvalideMahoso(values.inputValue);
+    }
+  };
 
-                                // Nếu không có lỗi validate, có thể thực hiện các hành động khác ở đây
-                            } catch (error) {
-                                // Nếu có lỗi validate, hiển thị Toast và setErrors nếu cần
-                                const errors = {};
-                                for (const validationError of error.inner) {
-                                    errors[validationError.path] = validationError.message;
-                                }
+  const formik = useFormik({
+    initialValues: {
+      select: "phonenumber",
+      inputValue: "",
+    },
+    validationSchema: Yup.object({}),
+    onSubmit: handleSubmit,
+  });
 
-                                // Set errors của Formik
-                                setErrors(errors);
+  const handleOnchange = (e) => {
+    setErrors(null);
+  };
 
-                                // Hiển thị Toast chỉ khi có lỗi validate
-                                setShowToast(true);
+  if (!isvisible) return null;
+  return (
+    <>
+      <div className={styles.modal} id="wrapper" onClick={handleClick}>
+        <div className={styles.modal__container}>
+          {/* navbar */}
+          <div className={styles.modal__container_nav}>
+            <h3 className={styles.modal__nav_title}>
+              Tra cứu thông tin hồ sơ đã nộp
+            </h3>
+            <button
+              className={styles.modal__nav_close}
+              onClick={() => onClose()}
+            >
+              &times;
+            </button>
+          </div>
+          <div className={styles.modal__nav_line}></div>
+          <form
+            className={styles.modal__search}
+            method="POST"
+            onSubmit={formik.handleSubmit}
+          >
+            <div className={styles.modal__search_container}>
+              <select
+                values={formik.values.select}
+                onChange={(e) => {
+                  formik.handleChange(e);
+                  handleOnchange(e);
+                }}
+                name="select"
+                id="searchType"
+                style={{
+                  border: "1px solid #ccc",
+                  borderRadius: "0.4rem",
+                  padding: "0.4rem 0.6rem",
+                  cursor: "pointer",
+                }}
+              >
+                <option selected value="phonenumber">
+                  Số điện thoại
+                </option>
+                <option value="mahoso">Mã hồ sơ</option>
+                <option value="email">Email</option>
+                <option value="cccd">Số CCCD</option>
+              </select>
 
-                                // Giữ loader trong khoảng thời gian (ví dụ 2000ms)
-                                setTimeout(() => {
-                                    // Tắt loader
-                                    setShowToast(false);
+              <input
+                type="text"
+                name="inputValue"
+                placeholder="Nhập thông tin..."
+                style={{
+                  border: "1px solid #ccc",
+                  borderRadius: "0.4rem",
+                  padding: "0.3rem 0.3rem",
+                  width: "48%",
+                  position: "relative",
+                }}
+                className={styles.input__scholl}
+                values={formik.values.inputValue}
+                onChange={(e) => {
+                  formik.handleChange(e);
+                  handleOnchange(e);
+                }}
+              />
+              {errors ? (
+                <div className={styles.error__Lookup}>{errors}</div>
+              ) : (
+                <div className={styles.error__Lookup}></div>
+              )}
 
-                                    // Kiểm tra xem có lỗi validate hay không
-                                    if (Object.keys(errors).length === 0) {
-                                        console.log('không có lỗi');
-                                    } else {
-                                        console.log('có lỗi');
-                                    }
-                                }, 1500); // Đặt thời gian tùy chọn
-                            }
-                        }}
-                    >
-                        {({ values, errors, touched, handleChange, handleSubmit }) => (
-                            <Form className={styles.modal__search} onSubmit={handleSubmit}>
-                                <div className={styles.modal__search_container}>
-                                    <select
-                                        values={values.number}
-                                        onChange={handleChange}
-                                        name="number"
-                                        id="searchType"
-                                        style={{
-                                            border: '1px solid #ccc',
-                                            borderRadius: '0.4rem',
-                                            padding: '0.4rem 0.6rem',
-                                            cursor: 'pointer',
-                                        }}
-                                    >
-                                        <option value="phonenumber">Số điện thoại</option>
-                                        <option value="mahoso">Mã hồ sơ</option>
-                                        <option value="email">Email</option>
-                                        <option value="cccd">Số CCCD</option>
-                                    </select>
-
-                                    <Field
-                                        type="text"
-                                        name="info"
-                                        placeholder="Nhập thông tin..."
-                                        style={{
-                                            border: '1px solid #ccc',
-                                            borderRadius: '0.4rem',
-                                            padding: '0.3rem 0.3rem',
-                                            width: '48%',
-                                            position: 'relative',
-                                        }}
-                                        values={values.info}
-                                        onChange={handleChange}
-                                    />
-                                    <div className={styles.error__Lookup}>{errors.info}</div>
-                                    <button
-                                        type="submit"
-                                        className={styles.modal__container_button}
-                                        style={{
-                                            borderRadius: '4px',
-                                            background: '#128080',
-                                            padding: '0.4rem 1.6rem',
-                                            color: '#fff',
-                                            cursor: 'pointer',
-                                        }}
-                                    >
-                                        Tra cứu
-                                    </button>
-                                </div>
-                            </Form>
-                        )}
-                    </Formik>
-                </div>
+              <button
+                type="submit"
+                className={styles.modal__container_button}
+                style={{
+                  borderRadius: "4px",
+                  background: "#128080",
+                  padding: "0.4rem 1.6rem",
+                  color: "#fff",
+                  cursor: "pointer",
+                  marginBottom: "2px",
+                  marginTop: "4px",
+                }}
+              >
+                Tra cứu
+              </button>
             </div>
-            {showToast && <ToastMessger show={showToast} onClose={() => setShowToast(false)} />}
-        </>
-    );
+          </form>
+        </div>
+      </div>
+    </>
+  );
 }
 
 export default ModaLookupProfile;

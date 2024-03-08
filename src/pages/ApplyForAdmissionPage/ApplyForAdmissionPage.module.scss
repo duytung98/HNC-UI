@@ -102,6 +102,9 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
     column-gap: 24px;
 }
+.custom-placeholder.ant-select-selection-placeholder::placeholder {
+    color: #ff6600 !important;
+}
 
 .content-gioiTinhAndDanToc,
 .content-name {

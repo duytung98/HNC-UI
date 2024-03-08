@@ -4,21 +4,21 @@ import styles from './Loading.module.scss';
 
 const cx = classnames.bind(styles);
 
-function Loading({ loading = false }) {
+function LoadingLine({ loading = false, className }) {
     return (
-        <div className={cx('loading', {
+        <div className={cx(className, 'loading', {
             'active': loading
         })}
         >
-            <div className={cx('loading-item')}></div>
+            <div className={cx('loading-line')}></div>
         </div>
     );
 }
 
-Loading.propTypes = {
+LoadingLine.propTypes = {
     loading: Proptypes.bool.isRequired
 }
 
 
 
-export default Loading;
+export default LoadingLine;

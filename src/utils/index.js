@@ -1,4 +1,11 @@
 export * from './excel';
 export * from './request';
+export * from './formatDate';
 export { default as covertStringToArray } from './covertStringToArray';
 export { default as getElementParent } from './getElementParent';
+export * from './getMaHuyenByName';
+export * from './getMaHuyenTHPT';
+export * from './getMaNganhById';
+export * from './getMaTinhTHPT';
+export * from './getMaTinhByName';
+export * from './getMaXaByName';

@@ -1,22 +1,174 @@
 import classnames from 'classnames/bind';
-import { memo, useEffect, useState } from 'react';
+import { memo, useEffect, useState, useRef } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 
-import { Button, Image } from '~/components';
-import { covertStringToArray } from '~/utils';
-import { XSquareCloseIcon, ToolIcon, PrinterIcon } from '~/components/Icon';
+import { Button, Image, NoImage } from '~/components';
+import { loginSuccess, userSelector } from '~/store';
+import {
+    detailAdmissionService, getCityListService,
+    getDistrictListService, getCommunelistService,
+    getCityListOfSchoolService, getDistrictListOfSchoolService,
+}
+    from '~/services';
+import { covertStringToArray, createAxios, formatDate } from '~/utils';
+import { XSquareCloseIcon, ToolIcon } from '~/components/Icon';
 import styles from './FormDetailAdmissionProfile.module.scss';
+
+
 const cx = classnames.bind(styles);
 
-const FormDetailAdmissionProfile = ({ maHS, onClose, onShowEdit }) => {
+const FormDetailAdmissionProfile = ({ maHS, onClose, onShowEdit, handleUpdateStatusAdmission }) => {
+    const dispatch = useDispatch();
+    const navigate = useNavigate();
     //Với page hồ sơ xét tuyển trang chi tiết mới có nút xét status hồ sơ;
     let paths = covertStringToArray(window.location.pathname, '/');
     let path = '/' + paths[paths.length - 1];
     const [inforProfile, setInforProfile] = useState(null);
+
+    const [tenTinh, setTenTinh] = useState('Trống');
+    const [tenHuyen, setTenHuyen] = useState('Trống');
+    const [tenTinhTHPT, setTenTinhTHPT] = useState('Trống');
+    const [tenHuyenTHPT, setTenHuyenTHPT] = useState('Trống');
+    const [tenXa, setTenXa] = useState('Trống');
+    const diemMon1 = +inforProfile?.xet_tuyen?.DiemMon1 || 0.0;
+    const diemMon2 = +inforProfile?.xet_tuyen?.DiemMon2 || 0.0;
+    const diemMon3 = +inforProfile?.xet_tuyen?.DiemMon3 || 0.0;
+    const diemTB = ((diemMon1 + diemMon2 + diemMon3) / 3);
+    const user = useSelector(userSelector);
+    const requestJWT = createAxios(user, dispatch, loginSuccess);
+
+    const [modalImgSrc, setModalImgSrc] = useState(null);
+    const modalContainerRef = useRef(null);
+
+    const openModal = (imgSrc) => {
+        setModalImgSrc(imgSrc);
+    };
+
+    const closeModal = () => {
+        setModalImgSrc(null);
+    };
+
+
     //Call api để lấy thông tin chi tiết của hồ sơ
     useEffect(() => {
         if (!maHS) return;
-        console.log('đã call api với maHS: ' + maHS);
+        try {
+            const getInforDetail = async () => {
+                const inforDetail = await detailAdmissionService(maHS, user?.access_token, requestJWT);
+                if (inforDetail) {
+                    setInforProfile(inforDetail);
+                }
+            }
+            getInforDetail();
+        } catch (e) {
+            navigate('/500-ServerError');
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [maHS]);
+
+    // Call api lấy thông tin tỉnh trong hộ khẩu thường trú;
+    useEffect(() => {
+        try {
+            const getInforTinh = async () => {
+                const list = await getCityListService() || [];
+                list.forEach((city) => {
+                    if (city.ma === inforProfile?.MaTinh) {
+                        setTenTinh(city.tenDonVi);
+                        return;
+                    }
+                })
+            }
+            getInforTinh();
+        } catch (e) {
+            navigate('/500-ServerError');
+        }
+    }, [maHS, inforProfile?.MaTinh, navigate])
+
+    // Call api lấy thông tin Huyện trong hộ khẩu thường trú;
+    useEffect(() => {
+        const getInforHuyen = async () => {
+            try {
+                const list = await getDistrictListService(inforProfile?.MaTinh) || [];
+                let check = false;
+                list.forEach((district) => {
+                    if (district.ma === inforProfile?.MaQuanHuyen) {
+                        check = true;
+                        setTenHuyen(district.tenDonVi);
+                        return;
+                    }
+                })
+                if (!check) setTenHuyen('Trống');
+            } catch (e) {
+                navigate('/500-ServerError');
+            }
+        }
+        getInforHuyen();
+    }, [maHS, inforProfile?.MaQuanHuyen, inforProfile?.MaTinh, navigate])
+
+
+    // Call api lấy thông tin xã trong hộ khẩu thường trú
+    useEffect(() => {
+        const getInforXa = async () => {
+            try {
+                const list = await getCommunelistService(inforProfile?.MaQuanHuyen) || [];
+                let check = false;
+                list.forEach((commune) => {
+                    if (commune.ma === inforProfile?.MaPhuongXa) {
+                        check = true;
+                        setTenXa(commune.tenDonVi);
+                        return;
+                    }
+                })
+                if (!check) setTenXa('Trống');
+            } catch (e) {
+                navigate('/500-ServerError');
+            }
+        }
+        getInforXa();
+    }, [maHS, inforProfile?.MaPhuongXa, inforProfile?.MaQuanHuyen, navigate])
+
+    // Call api lấy thông tinh tỉnh của trường THPT mà học sinh học.
+    useEffect(() => {
+        const getInforTinhTHPT = async (maTinh) => {
+            try {
+                const list = await getCityListOfSchoolService() || [];
+                let check = false;
+                list.forEach((city) => {
+                    if (city.maTinh === maTinh) {
+                        check = true;
+                        setTenTinhTHPT(city.tenTinhTP);
+                        return;
+                    }
+                })
+                if (!check) setTenTinhTHPT('Trống');
+            } catch (e) {
+                navigate('/500-ServerError');
+            }
+        }
+        getInforTinhTHPT(inforProfile?.MaTinhTruong);
+    }, [inforProfile?.MaTinhTruong, navigate])
+
+    // Call api lấy thông tinh tỉnh của trường THPT mà học sinh học.
+    useEffect(() => {
+        const getInforHuyenTHPT = async (maTinh, maHuyen) => {
+            try {
+                const list = await getDistrictListOfSchoolService(maTinh) || [];
+                let check = false;
+                list.forEach((district) => {
+                    if (district.maQH === maHuyen) {
+                        check = true;
+                        setTenHuyenTHPT(district.tenQH);
+                        return;
+                    }
+                })
+                if (!check) setTenHuyenTHPT('Trống');
+            } catch (e) {
+                navigate('/500-ServerError');
+            }
+        }
+        getInforHuyenTHPT(inforProfile?.MaTinhTruong, inforProfile?.MaQuanHuyenTruong);
+    }, [inforProfile?.MaTinhTruong, inforProfile?.MaQuanHuyenTruong, navigate])
 
     const handleCloseForm = () => {
         onClose();
@@ -27,6 +179,7 @@ const FormDetailAdmissionProfile = ({ maHS, onClose, onShowEdit }) => {
         onShowEdit(maHS);
         handleCloseForm();
     };
+
     return (
         <div className={cx('detail-admission')}>
             <div className={cx('title')}>
@@ -42,95 +195,90 @@ const FormDetailAdmissionProfile = ({ maHS, onClose, onShowEdit }) => {
                             <div className={cx('content-name')}>
                                 <div className={cx('content-infor', 'content-firstName')}>
                                     <label className={cx('content-item-label')}>
-                                        <span className={cx('text-red-600 mr-1')}>*</span>
                                         Họ đệm
                                     </label>
-                                    <p className={cx('content-item-input')}>Nguyễn Văn</p>
+                                    <p className={cx('content-item-input')}>{inforProfile?.HoDem}</p>
                                     <p className={cx('message')}> </p>
                                 </div>
                                 <div className={cx('content-infor', 'content-lastName')}>
                                     <label className={cx('content-item-label')}>
-                                        <span className={cx('text-red-600 mr-1')}>*</span>
                                         Tên
                                     </label>
-                                    <p className={cx('content-item-input')}>Khiêm</p>
+                                    <p className={cx('content-item-input')}>{inforProfile?.Ten}</p>
 
                                     <p className={cx('message')}> </p>
                                 </div>
                             </div>
                             <div className={cx('content-infor', 'content-birthday')}>
                                 <label className={cx('content-item-label')}>
-                                    <span className={cx('text-red-600 mr-1')}>*</span>
                                     Ngày sinh
                                 </label>
-                                <p className={cx('content-item-input')}>26/07/2015</p>
+                                <p className={cx('content-item-input')}>
+                                    {formatDate(inforProfile?.NgayThangNamSinh)}
+                                </p>
                                 <p className={cx('message')}> </p>
                             </div>
                             <div className={cx('content-gioiTinhAndDanToc')}>
                                 <div className={cx('content-infor', 'content-grender')}>
                                     <label className={cx('content-item-label')}>
-                                        <span className={cx('text-red-600 mr-1')}>*</span>
                                         Giới tính
                                     </label>
-                                    <p className={cx('content-item-input')}>Nam</p>
+                                    <p className={cx('content-item-input')}>{inforProfile?.GioiTinh}</p>
                                     <p className={cx('message')}> </p>
                                 </div>
                                 <div className={cx('content-infor', 'content-dantoc')}>
                                     <label className={cx('content-item-label')}>
-                                        <span className={cx('text-red-600 mr-1')}>*</span>
                                         Dân tộc
                                     </label>
-                                    <p className={cx('content-item-input')}>Kinh</p>
+                                    <p className={cx('content-item-input')}>{inforProfile?.DanToc}</p>
                                     <p className={cx('message')}> </p>
                                 </div>
                             </div>
                             <div className={cx('content-infor', 'content-CCCD')}>
                                 <label className={cx('content-item-label')}>
-                                    <span className={cx('text-red-600 mr-1')}>*</span>
-                                    Nhập vào CMND/CCCD
+                                    CMND/CCCD
                                 </label>
-                                <p className={cx('content-item-input')}>82834823482348</p>
+                                <p className={cx('content-item-input')}>{inforProfile?.CCCD}</p>
                                 <p className={cx('message')}> </p>
                             </div>
                             <div className={cx('content-infor', 'content-email')}>
                                 <label className={cx('content-item-label')}>
-                                    <span className={cx('text-red-600 mr-1')}>*</span>
-                                    Email
+                                    Email:
                                 </label>
-                                <p className={cx('content-item-input')}>khiem124@gmail.com</p>
+                                <p className={cx('content-item-input')}>{inforProfile?.Email}</p>
                                 <p className={cx('message')}> </p>
                             </div>
                             <div className={cx('content-infor', 'content-phone')}>
                                 <label className={cx('content-item-label')}>
-                                    <span className={cx('text-red-600 mr-1')}>*</span>
                                     Số điện thoại
                                 </label>
-                                <p className={cx('content-item-input')}>0987652732</p>
+                                <p className={cx('content-item-input')}>{inforProfile?.SDT}</p>
                                 <p className={cx('message')}> </p>
                             </div>
                         </div>
                         <div className={cx('content-container-item', 'content-full', 'mt-6')}>
                             <div className={cx('content-infor', 'content-hometown')}>
                                 <label htmlFor="Tinh" className={cx('content-item-label')}>
-                                    <span className={cx('text-red-600 mr-1')}>*</span>
                                     Hộ khẩu thường trú
                                 </label>
                                 <div className={cx('content-full-item')}>
                                     <div className={cx('content-howtel-tinh')}>
-                                        <p className={cx('content-item-input')}>Hà Nội</p>
+                                        <p className={cx('content-item-input')}>{tenTinh}</p>
                                         <p className={cx('message')}> </p>
                                     </div>
                                     <div className={cx('content-howtel-huyen')}>
-                                        <p className={cx('content-item-input')}>Phúc Thọ</p>
+                                        <p className={cx('content-item-input')}>{tenHuyen}</p>
                                         <p className={cx('message')}> </p>
                                     </div>
                                     <div className={cx('content-howtel-xa')}>
-                                        <p className={cx('content-item-input')}>Thị trấn Phúc Thọ</p>
+                                        <p className={cx('content-item-input')}>{tenXa}</p>
                                         <p className={cx('message')}> </p>
                                     </div>
                                 </div>
                                 <div className={cx('content-infor', 'content-howtel-address', 'mt-6')}>
-                                    <p className={cx('content-item-input')}>Thị trấn Phúc Thọ - Phúc Thọ - Hà Nội</p>
+                                    <p className={cx('content-item-input')}>
+                                        {inforProfile?.DiaChi}
+                                    </p>
                                     <p className={cx('message')}> </p>
                                 </div>
                             </div>
@@ -147,26 +295,23 @@ const FormDetailAdmissionProfile = ({ maHS, onClose, onShowEdit }) => {
                         <div className={cx('content-container-item')}>
                             <div className={cx('content-infor')}>
                                 <label className={cx('content-item-label')}>
-                                    <span className={cx('text-red-600 mr-1')}>*</span>
                                     Thành phố / Tỉnh
                                 </label>
-                                <p className={cx('content-item-input')}>Hà Nội</p>
+                                <p className={cx('content-item-input')}>{tenTinhTHPT}</p>
                                 <p className={cx('message')}> </p>
                             </div>
                             <div className={cx('content-infor')}>
                                 <label className={cx('content-item-label')}>
-                                    <span className={cx('text-red-600 mr-1')}>*</span>
                                     Quận / Huyện
                                 </label>
-                                <p className={cx('content-item-input')}>Sơn Tây</p>
+                                <p className={cx('content-item-input')}>{tenHuyenTHPT}</p>
                                 <p className={cx('message')}></p>
                             </div>
                             <div className={cx('content-infor')}>
                                 <label className={cx('content-item-label')}>
-                                    <span className={cx('text-red-600 mr-1')}>*</span>
                                     Trường THPT
                                 </label>
-                                <p className={cx('content-item-input')}>THPT Sơn Tây</p>
+                                <p className={cx('content-item-input')}>{inforProfile?.TenTruong}</p>
                                 <p className={cx('message')}> </p>
                             </div>
                             <div className={cx('content-infor')}>
@@ -174,34 +319,35 @@ const FormDetailAdmissionProfile = ({ maHS, onClose, onShowEdit }) => {
                                     <span className={cx('text-red-600 mr-1')}> </span>
                                     Đối tượng ưu tiên
                                 </label>
-                                <p className={cx('content-item-input')}>Trống</p>
+                                <p className={cx('content-item-input')}>{inforProfile?.DoiTuongUT}</p>
                                 <p className={cx('message')}></p>
                             </div>
                             <div className={cx('content-infor')}>
                                 <label className={cx('content-item-label')}>
-                                    <span className={cx('text-red-600 mr-1')}>*</span>
                                     Khu vực ưu tiên
                                 </label>
-                                <p className={cx('content-item-input')}>Trống</p>
+                                <p className={cx('content-item-input')}>{inforProfile?.KhuVucUT}</p>
                                 <p className={cx('message')}></p>
                             </div>
                             <div className={cx('content-infor')}>
                                 <label className={cx('content-item-label')}>
-                                    <span className={cx('text-red-600 mr-1')}>*</span>
                                     Năm tốt nghiệp
                                 </label>
-                                <p className={cx('content-item-input')}>2021</p>
+                                <p className={cx('content-item-input')}>
+                                    {inforProfile?.NamTotNghiep}
+                                </p>
                                 <p className={cx('message')}></p>
                             </div>
                         </div>
                         <div className={cx('content-container-item', 'content-full', 'mt-6')}>
                             <div className={cx('content-infor', 'content-hinhthuc')}>
                                 <label className={cx('content-item-label')}>
-                                    <span className={cx('text-red-600 mr-1')}>*</span>
                                     Phương án xét tuyển
                                 </label>
                                 <div className={cx('content-infor', 'content--address', 'mt-6')}>
-                                    <p className={cx('content-item-input')}>Xét tuyển học bạ THPT</p>
+                                    <p className={cx('content-item-input')}>
+                                        {inforProfile?.xet_tuyen?.HinhThuc}
+                                    </p>
                                     <p className={cx('message')}></p>
                                 </div>
                             </div>
@@ -220,20 +366,22 @@ const FormDetailAdmissionProfile = ({ maHS, onClose, onShowEdit }) => {
                                 <div className={cx('content-infor', 'content-scores-item')}>
                                     <div className={cx('content-infor-group')}>
                                         <label className={cx('content-item-label')}>
-                                            <span className={cx('text-red-600 mr-1')}>*</span>
                                             Môn thứ 1 (Toán):
                                         </label>
-                                        <p className={cx('content-item-input')}>8.0</p>
+                                        <p className={cx('content-item-input')}>
+                                            {diemMon1.toFixed(2)}
+                                        </p>
                                     </div>
                                     <p className={cx('message')}></p>
                                 </div>
                                 <div className={cx('content-infor', 'content-scores-item')}>
                                     <div className={cx('content-infor-group')}>
                                         <label className={cx('content-item-label')}>
-                                            <span className={cx('text-red-600 mr-1')}>*</span>
                                             Môn thứ 2 (Văn):
                                         </label>
-                                        <p className={cx('content-item-input')}>5.0</p>
+                                        <p className={cx('content-item-input')}>
+                                            {diemMon2.toFixed(2)}
+                                        </p>
                                     </div>
                                     <p className={cx('message')}></p>
                                 </div>
@@ -242,20 +390,22 @@ const FormDetailAdmissionProfile = ({ maHS, onClose, onShowEdit }) => {
                                 <div className={cx('content-infor', 'content-scores-item')}>
                                     <div className={cx('content-infor-group')}>
                                         <label className={cx('content-item-label')}>
-                                            <span className={cx('text-red-600 mr-1')}>*</span>
                                             Môn thứ 3:
                                         </label>
-                                        <p className={cx('content-item-input')}>7.0</p>
+                                        <p className={cx('content-item-input')}>
+                                            {diemMon3.toFixed(2)}
+                                        </p>
                                     </div>
                                     <p className={cx('message')}></p>
                                 </div>
                                 <div className={cx('content-infor', 'content-scores-item')}>
                                     <div className={cx('content-infor-group')}>
                                         <label className={cx('content-item-label')}>
-                                            <span className={cx('text-red-600 mr-1')}>*</span>
                                             Điểm trung bình:
                                         </label>
-                                        <p className={cx('content-item-input')}>6.67</p>
+                                        <p className={cx('content-item-input')}>
+                                            {diemTB.toFixed(2)}
+                                        </p>
                                     </div>
                                     <p className={cx('message')}></p>
                                 </div>
@@ -274,10 +424,11 @@ const FormDetailAdmissionProfile = ({ maHS, onClose, onShowEdit }) => {
                             <div className={cx('content-Fieldofstudy')}>
                                 <div className={cx('content-infor', 'content-Fieldofstudy-item')}>
                                     <label className={cx('content-item-label')}>
-                                        <span className={cx('text-red-600 mr-1')}>*</span>
                                         Ngành xét tuyển
                                     </label>
-                                    <p className={cx('content-item-input')}>Công nghệ thông tin</p>
+                                    <p className={cx('content-item-input')}>
+                                        {inforProfile?.nganh?.TenNganh}
+                                    </p>
                                 </div>
                                 <p className={cx('message')}></p>
                             </div>
@@ -307,7 +458,22 @@ const FormDetailAdmissionProfile = ({ maHS, onClose, onShowEdit }) => {
                                     </td>
                                     <td>
                                         <div className={cx('content-images-group')}>
-                                            <Image src="/" className={cx('content-images-item', 'empty')} alt="img-1" />
+
+                                            {inforProfile?.minh_chung?.BangKQ12 ?
+                                                inforProfile?.minh_chung?.BangKQ12?.map((img, index) => {
+                                                    return (
+                                                        <Image src={img}
+                                                            className={cx('content-images-item')}
+                                                            alt={'img-1' + index}
+                                                            key={index}
+                                                            onClick={() =>
+                                                                openModal(img)
+                                                            }
+                                                        />
+                                                    )
+                                                }) :
+                                                <NoImage classNane={cx('content-images-item', 'empty')} />
+                                            }
                                         </div>
                                     </td>
                                 </tr>
@@ -318,18 +484,38 @@ const FormDetailAdmissionProfile = ({ maHS, onClose, onShowEdit }) => {
                                     </td>
                                     <td>
                                         <div className={cx('content-images-group')}>
-                                            <Image src="/" className={cx('content-images-item', 'empty')} alt="img-2" />
+                                            {inforProfile?.minh_chung?.HocBaBia ?
+                                                <Image src={inforProfile?.minh_chung?.HocBaBia}
+                                                    className={cx('content-images-item')}
+                                                    alt='img-1'
+                                                    onClick={() =>
+                                                        openModal(inforProfile?.minh_chung?.HocBaBia)
+                                                    }
+                                                />
+                                                :
+                                                <NoImage classNane={cx('content-images-item', 'empty')} />
+                                            }
                                         </div>
                                     </td>
                                 </tr>
                                 <tr>
                                     <td className={cx('content-images-col-1')}>3</td>
-                                    <td className={cx('content-images-col-2', 'text-left px-3', 'empty')}>
+                                    <td className={cx('content-images-col-2', 'text-left px-3')}>
                                         Ảnh chụp bằng tốt nghiệp
                                     </td>
                                     <td>
                                         <div className={cx('content-images-group')}>
-                                            <Image src="/" className={cx('content-images-item', 'empty')} alt="img-3" />
+                                            {inforProfile?.minh_chung?.ChungNhanTN ?
+                                                <Image src={inforProfile?.minh_chung?.ChungNhanTN}
+                                                    className={cx('content-images-item')}
+                                                    alt='img-1'
+                                                    onClick={() =>
+                                                        openModal(inforProfile?.minh_chung?.ChungNhanTN)
+                                                    }
+                                                />
+                                                :
+                                                <NoImage classNane={cx('content-images-item', 'empty')} />
+                                            }
                                         </div>
                                     </td>
                                 </tr>
@@ -340,7 +526,17 @@ const FormDetailAdmissionProfile = ({ maHS, onClose, onShowEdit }) => {
                                     </td>
                                     <td>
                                         <div className={cx('content-images-group')}>
-                                            <Image src="/" className={cx('content-images-item', 'empty')} alt="img-4" />
+                                            {inforProfile?.minh_chung?.ChungNhanUT ?
+                                                <Image src={inforProfile?.minh_chung?.ChungNhanUT}
+                                                    className={cx('content-images-item')}
+                                                    alt='img-1'
+                                                    onClick={() =>
+                                                        openModal(inforProfile?.minh_chung?.ChungNhanUT)
+                                                    }
+                                                />
+                                                :
+                                                <NoImage classNane={cx('content-images-item', 'empty')} />
+                                            }
                                         </div>
                                     </td>
                                 </tr>
@@ -369,19 +565,45 @@ const FormDetailAdmissionProfile = ({ maHS, onClose, onShowEdit }) => {
                     >
                         Sửa
                     </Button>
-                    <Button className={cx('btn-item', 'btn-print')} iconLeft={<PrinterIcon width="16" height="16" />}>
-                        In
-                    </Button>
                     {path === '/hosoxettuyen' && (
                         <>
-                            <Button className={cx('btn-item', 'btn-failed')}>Không đạt</Button>
-                            <Button className={cx('btn-item', 'btn-success')} primary>
+                            <Button className={cx('btn-item', 'btn-failed')}
+                                onClick={() => {
+                                    handleUpdateStatusAdmission(inforProfile, false)
+                                }}
+                            >
+                                Không đạt
+                            </Button>
+                            <Button className={cx('btn-item', 'btn-success')}
+                                onClick={() => {
+                                    handleUpdateStatusAdmission(inforProfile, true)
+                                }}
+                                primary
+                            >
                                 Đạt
                             </Button>
                         </>
                     )}
                 </div>
             </main>
+            {
+                modalImgSrc && (
+                    <div ref={modalContainerRef} className={cx('modal')}
+                        onClick={closeModal}
+                    >
+                        <div
+                            className={cx('modal-container-img')}
+                        >
+                            <img className={cx('modal-img')} src={modalImgSrc} alt="img ảnh" />
+                            <div className={cx('btn')}>
+                                <button className={cx('btn-close')} onClick={closeModal}>
+                                    &times;
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
         </div>
     );
 };

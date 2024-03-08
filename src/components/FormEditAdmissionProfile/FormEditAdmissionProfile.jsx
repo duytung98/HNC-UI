@@ -1,28 +1,37 @@
+import * as Yup from 'yup';
 import classnames from 'classnames/bind';
 import { useFormik } from 'formik';
-import { useEffect, memo, useState } from 'react';
-import * as Yup from 'yup';
+import { useNavigate } from 'react-router-dom';
+import { useSelector, useDispatch } from 'react-redux';
+import { useEffect, memo, useState, useRef } from 'react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 
 import styles from './FormEditAdmissionProfile.module.scss';
-import { Button, Image, ModalAlert } from '~/components';
+import { createAxios, formatDate } from '~/utils';
+import { userSelector, loginSuccess } from '~/store';
+import { Button, Image, ModalAlert, NoImage, ModalAlertOneButton } from '~/components';
 import { UploadIcon, XSquareCloseIcon } from '~/components/Icon';
 import {
-    getNationListService,
-    getCityListService,
-    getDistrictListService,
-    getCommunelistService,
-    getCityListOfSchoolService,
-    getDistrictListOfSchoolService,
-    getSchoollistService,
+    getNationListService, getCityListService, getDistrictListService, getCommunelistService,
+    getCityListOfSchoolService, getDistrictListOfSchoolService, getSchoollistService, getMajorListService, detailAdmissionService, updateInforProfileService, convertUrlImgToFileService
 } from '~/services';
 const cx = classnames.bind(styles);
 
 function FormEditAdmissionProfile({ maHS, onCloseForm }) {
-    const [exit, setExit] = useState(false);
+    const dispatch = useDispatch();
+    const navigate = useNavigate();
 
-    const [inforProfile, setInforProfile] = useState(null);
+    const formContainerRef = useRef(null);
+    const user = useSelector(userSelector);
+    const requestJWT = createAxios(user, dispatch, loginSuccess);
+
+    const [exit, setExit] = useState(false);
+    const [messResp, setMessResp] = useState('');
+    const [errors, setErrors] = useState(null);
+    const [responsed, setResponsed] = useState(false);
+    const [dataUpdated, setDataUpdated] = useState(null);
+    const [majorList, setMajorList] = useState([]);
     const [nationList, setNationList] = useState([]);
     const [cityList, setCityList] = useState([]);
     const [citysOfSchool, setCitysOfSchool] = useState([]);
@@ -30,159 +39,354 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
     const [districtsOfSchool, setDistrictsOfSchool] = useState([]);
     const [communelist, setCommunelist] = useState([]);
     const [schoolList, setSchoolList] = useState([]);
-    const [maTinhTHPT, setMaTinhTHPT] = useState('');
-    const [MaHuyenTHPT, setMaHuyenTHPT] = useState('');
     const [birthday, setBirthday] = useState(null);
     const [TruongTHPT, setTruongTHPT] = useState(null);
+    const [BangKQ12, setBangKQ12] = useState([]);
+    const [HocBaBia, setHocBaBia] = useState(null);
+    const [ChungNhanTN, setChungNhanTN] = useState(null);
+    const [ChungNhanUT, setChungNhanUT] = useState(null);
+
+    const [modalImgSrc, setModalImgSrc] = useState(null);
+    const modalContainerRef = useRef(null);
+
+    const openModal = (imgSrc) => {
+        setModalImgSrc(imgSrc);
+    };
+
+    const closeModal = () => {
+        setModalImgSrc(null);
+    };
+
+    const handleSubmit = async (values) => {
+        try {
+            const formData = new FormData();
+            formData.append('_method', 'put');
+
+            let date = formatDate(birthday);
+            let paths = date.split('/');
+            let NgayThangNamSinh = paths[2] + '-' + paths[1] + '-' + paths[0];
+
+            formData.append('TenTruong', TruongTHPT?.tenTruong);
+            formData.append('KhuVucUT', TruongTHPT?.khuVucUT);
+            formData.append('NgayThangNamSinh', NgayThangNamSinh);
+
+            Object.keys(values).forEach((key) => {
+                formData.append(key, values[key]);
+            })
+
+            for (const image of BangKQ12) {
+                const fileImage = await convertUrlImgToFileService(image, 'BangKQ12[]');
+                formData.append("BangKQ12[]", fileImage);
+            }
+
+            if (HocBaBia) {
+                const fileImage = await convertUrlImgToFileService(HocBaBia, 'HocBaBia');
+                formData.append("HocBaBia", fileImage);
+            }
+            if (ChungNhanTN) {
+                const fileImage = await convertUrlImgToFileService(ChungNhanTN, 'ChungNhanTN');
+                formData.append("ChungNhanTN", fileImage);
+            }
+            if (ChungNhanUT) {
+                const fileImage = await convertUrlImgToFileService(ChungNhanUT, 'ChungNhanUT');
+                formData.append("ChungNhanUT", fileImage);
+            }
+
+            let HoSoID = formik.values?.id;
+            const res = await updateInforProfileService(HoSoID, formData, user?.access_token, requestJWT);
+
+            if (res?.errors) {
+                setErrors(res?.errors);
+                setMessResp('Cập nhật thất bại, Đã xảy ra lỗi.');
+                setResponsed(true);
+                return;
+            }
+            if (res?.success) setDataUpdated(true);
+
+        } catch (e) {
+            setMessResp('Cập nhật thất bại, Đã xảy ra lỗi.');
+            setResponsed(true);
+        }
+    }
+
+    const formik = useFormik({
+        initialValues: {
+            id: null,
+            HoDem: '',
+            Ten: '',
+            CCCD: '',
+            Email: '',
+            DiaChi: '',
+            GioiTinh: '',
+            DanToc: '',
+            SDT: '',
+            MaTinh: '',
+            MaQuanHuyen: '',
+            MaPhuongXa: '',
+            NamTotNghiep: '',
+            MaTinhTruong: '',
+            MaQuanHuyenTruong: '',
+            TenTruong: '',
+            DoiTuongUT: '',
+            HinhThuc: 'Xét tuyển bằng học bạ THPT',
+            Nganh_ID: '',
+            DiemMon1: '',
+            DiemMon2: '',
+            DiemMon3: '',
+            NgayNop: '',
+        },
+        validationSchema: Yup.object({
+            HoDem: Yup.string().required('Vui lòng nhập thông tin!'),
+            Ten: Yup.string().required('Vui lòng nhập thông tin!'),
+            DiaChi: Yup.string().required('Vui lòng nhập thông tin!'),
+            CCCD: Yup.string().required('Vui lòng nhập thông tin!')
+                .matches(/^\d{11,12}$/, 'CCCD không hợp lệ!'),
+            MaTinh: Yup.string().required('Vui lòng chọn thông tin!'),
+            MaQuanHuyen: Yup.string().required('Vui lòng chọn thông tin!'),
+            MaPhuongXa: Yup.string().required('Vui lòng chọn thông tin!'),
+            MaTinhTruong: Yup.string().required('Vui lòng chọn thông tin!'),
+            MaQuanHuyenTruong: Yup.string().required('Vui lòng chọn thông tin!'),
+            Email: Yup.string()
+                .required('Vui lòng nhập thông tin!')
+                .email('Email không hợp lệ!')
+                .max('255', 'Email quá dài!'),
+            SDT: Yup.string()
+                .required('Vui lòng nhập thông tin!')
+                .matches(/^[0][0-9]{9}$/, 'Số điện thoại không hợp lệ!'),
+            Nganh_ID: Yup.string().required('Vui lòng chọn thông tin'),
+            DiemMon1: Yup.string().required('Vui lòng nhập thông tin'),
+            DiemMon2: Yup.string().required('Vui lòng nhập thông tin'),
+            DiemMon3: Yup.string().required('Vui lòng nhập thông tin'),
+        }),
+        onSubmit: handleSubmit,
+    });
+
+    let diemMon1 = +formik.values.DiemMon1;
+    let diemMon2 = +formik.values.DiemMon2;
+    let diemMon3 = +formik.values.DiemMon3;
+    let diemTB = ((diemMon1 + diemMon2 + diemMon3) / 3);
 
     //Call api để lấy thông tin chi tiết của hồ sơ
     useEffect(() => {
         if (!maHS) return;
-        console.log('đã call api với maHS: ' + maHS);
+        const getDetailProfile = async (maHS) => {
+            try {
+                const inforDetail = await detailAdmissionService(maHS, user?.access_token, requestJWT);
+                if (inforDetail) {
+                    formik.resetForm({
+                        values: {
+                            id: inforDetail?.id,
+                            HoDem: inforDetail?.HoDem,
+                            Ten: inforDetail?.Ten,
+                            CCCD: inforDetail?.CCCD,
+                            Email: inforDetail?.Email,
+                            DiaChi: inforDetail?.DiaChi,
+                            GioiTinh: inforDetail?.GioiTinh,
+                            DanToc: inforDetail?.DanToc,
+                            SDT: inforDetail?.SDT,
+                            MaTinh: inforDetail?.MaTinh,
+                            MaQuanHuyen: inforDetail?.MaQuanHuyen,
+                            MaPhuongXa: inforDetail?.MaPhuongXa,
+                            MaTinhTruong: inforDetail?.MaTinhTruong,
+                            MaQuanHuyenTruong: inforDetail?.MaQuanHuyenTruong,
+                            NamTotNghiep: +inforDetail?.NamTotNghiep,
+                            DoiTuongUT: inforDetail?.DoiTuongUT,
+                            HinhThuc: inforDetail?.xet_tuyen?.HinhThuc,
+                            Nganh_ID: inforDetail?.Nganh_ID,
+                            DiemMon1: (+inforDetail?.xet_tuyen?.DiemMon1).toFixed(2),
+                            DiemMon2: (+inforDetail?.xet_tuyen?.DiemMon2).toFixed(2),
+                            DiemMon3: (+inforDetail?.xet_tuyen?.DiemMon3).toFixed(2),
+                        }
+                    });
+                    setBangKQ12(inforDetail?.minh_chung?.BangKQ12);
+                    setHocBaBia(inforDetail?.minh_chung?.HocBaBia);
+                    setChungNhanTN(inforDetail?.minh_chung?.ChungNhanTN);
+                    setChungNhanUT(inforDetail?.minh_chung?.ChungNhanUT);
+                    setTruongTHPT({
+                        tenTruong: inforDetail?.TenTruong,
+                        khuVucUT: inforDetail?.KhuVucUT
+                    });
+                    const ngaySinh = formatDate(inforDetail?.NgayThangNamSinh);
+                    const paths = ngaySinh.split('/');
+                    const formattedDate = new Date(paths[2], paths[1] - 1, paths[0]);
+                    setBirthday(formattedDate);
+                }
+            } catch (e) {
+                navigate('/500-ServerError');
+            }
+        }
+        getDetailProfile(maHS);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [maHS]);
 
     // Call api lấy danh sách dân tộc
     useEffect(() => {
         const getNationList = async () => {
-            const data = await getNationListService();
-            setNationList(data);
+            try {
+                const data = await getNationListService();
+                setNationList(data);
+            } catch (e) {
+                navigate('/500-ServerError');
+            }
         };
         getNationList();
-    }, []);
+    }, [navigate]);
 
     // Call api lấy danh sách thành phố Việt Nam;
     useEffect(() => {
         const getCityList = async () => {
-            const data = await getCityListService();
-            setCityList(data);
+            try {
+                const data = await getCityListService();
+                setCityList(data);
+            } catch (e) {
+                navigate('/500-ServerError');
+            }
         };
         getCityList();
-    }, []);
-
-    const formik = useFormik({
-        initialValues: {
-            HoDem: '',
-            Ten: '',
-            NgaySinh: '',
-            CCCD: '',
-            Email: '',
-            DiaChi: '',
-            GioiTinh: 'Nam',
-            DanToc: 'Kinh',
-            SDT: '',
-            MaTinh: '',
-            MaHuyen: '',
-            MaXa: '',
-            Truong: '',
-            NamTotNghiep: '2024',
-            DoiTuongUT: '',
-            HinhThuc: '',
-            MaNganh: '',
-            DiemMon1: '0.0',
-            DiemMon2: '0.0',
-            DiemMon3: '0.0',
-        },
-        validationSchema: Yup.object({
-            HoDem: Yup.string().required('Vui lòng nhập trường này!'),
-            Ten: Yup.string().required('Vui lòng nhập trường này!'),
-            NgaySinh: Yup.string().required('Vui lòng nhập trường này!'),
-            DiaChi: Yup.string().required('Vui lòng nhập trường này!'),
-            CCCD: Yup.string().required('Vui lòng nhập trường này!'),
-            Email: Yup.string()
-                .required('Vui lòng nhập trường này!')
-                .email('Email không hợp lệ!')
-                .max('255', 'Email quá dài!'),
-            SDT: Yup.string().required('Vui lòng nhập thông tin!'),
-            DiemMon1: Yup.string().required(),
-            DiemMon2: Yup.string().required(),
-            DiemMon3: Yup.string().required(),
-        }),
-        onSubmit: values => {
-            console.log(values);
-        },
-    });
+    }, [navigate]);
 
     //Call api lấy danh sách huyện của tỉnh
     let MaTinh = formik.values.MaTinh;
     useEffect(() => {
         const getDistrictList = async () => {
-            const data = (await getDistrictListService(MaTinh)) || [];
-            setDistrictList(data);
+            try {
+                const data = (await getDistrictListService(MaTinh)) || [];
+                setDistrictList(data);
+            } catch (e) {
+                navigate('/500-ServerError');
+            }
         };
         getDistrictList();
-    }, [MaTinh]);
+    }, [MaTinh, navigate]);
 
     //Call api lấy danh sách xã của huyện
-    let MaHuyen = formik.values.MaHuyen;
+    let MaQuanHuyen = formik.values.MaQuanHuyen;
     useEffect(() => {
         const getCommunelist = async () => {
-            const data = (await getCommunelistService(MaHuyen)) || [];
-            setCommunelist(data);
+            try {
+                const data = (await getCommunelistService(MaQuanHuyen)) || [];
+                setCommunelist(data);
+            } catch (e) {
+                navigate('/500-ServerError');
+            }
         };
         getCommunelist();
-    }, [MaHuyen]);
+    }, [MaQuanHuyen, navigate]);
 
     // Call api lấy danh sách thành phố của Schools
     useEffect(() => {
         const getCityList = async () => {
-            const data = await getCityListOfSchoolService();
-            setCitysOfSchool(data);
+            try {
+                const data = await getCityListOfSchoolService();
+                setCitysOfSchool(data);
+            } catch (e) {
+                navigate('/500-ServerError');
+            }
         };
         getCityList();
-    }, []);
+    }, [navigate]);
 
     //Call api lấy danh sách huyện của school
+    let maTinhTHPT = formik.values.MaTinhTruong;
     useEffect(() => {
         const getDistrictList = async () => {
-            const data = (await getDistrictListOfSchoolService(maTinhTHPT)) || [];
-            setDistrictsOfSchool(data);
+            try {
+                const data = (await getDistrictListOfSchoolService(maTinhTHPT)) || [];
+                setDistrictsOfSchool(data);
+            } catch (e) {
+                navigate('/500-ServerError');
+            }
         };
         getDistrictList();
-    }, [maTinhTHPT]);
+    }, [maTinhTHPT, navigate]);
 
-    //Call api lấy danh sách  school
+    //Call api lấy danh sách school
+    let MaHuyenTHPT = formik.values.MaQuanHuyenTruong;
     useEffect(() => {
         const getSchoolList = async () => {
-            const data = (await getSchoollistService(maTinhTHPT, MaHuyenTHPT)) || [];
-            console.log(data);
-            setSchoolList(data);
+            try {
+                const data = (await getSchoollistService(maTinhTHPT, MaHuyenTHPT)) || [];
+                setSchoolList(data);
+            } catch (e) {
+                navigate('/500-ServerError');
+            }
         };
         getSchoolList();
-    }, [maTinhTHPT, MaHuyenTHPT]);
+    }, [maTinhTHPT, MaHuyenTHPT, navigate]);
 
-    const handleUploadImages = e => {
+    // Call api lấy danh sách ngành học
+    useEffect(() => {
+        const getMajorList = async () => {
+            try {
+                const list = await getMajorListService();
+                setMajorList(list);
+            } catch (e) {
+                navigate('/500-ServerError');
+            }
+        }
+        getMajorList();
+    }, [navigate])
+
+    // hàm updal img
+    const handleUploadImages = async (e) => {
         e.preventDefault();
         e.stopPropagation();
         const element = e.target;
+        const type = element?.name;
         const files = Array.from(element.files);
-        const eParrent = element.parentNode;
-        const eImgContainer = eParrent.querySelector('#img-container');
-        const promises = files.map((file, index) => {
-            if (index >= 2) return Promise.reject('Tải quá số file quy định');
-            return new Promise(resolve => {
-                const reader = new FileReader();
-                reader.onload = e => {
-                    const img_src = e.target.result;
-                    resolve(`<img src="${img_src}" class="${cx('content-images-item')}"/>`);
-                };
-                reader.readAsDataURL(file);
-            });
-        });
 
-        Promise.all(promises)
-            .then(imgs => {
-                console.log(imgs);
-                eImgContainer.innerHTML = imgs.join(' ');
-            })
-            .catch(e => alert('Bạn chỉ có thể tải tối đa 2 file ảnh !'));
+        // kiểm tra quá số file upload
+        if (files.length > 2) {
+            setMessResp('Bạn chỉ được tải tối đa 2 hình ảnh lên!');
+            setResponsed(true);
+            return;
+        }
+
+        const BangKQ12temp = [];
+        for (let index = 0; index < files.length; index++) {
+            const img_src = await readFile(files[index]);
+            switch (type) {
+                case 'BangKQ12':
+                    errors && (errors['BangKQ12.0'] = '');
+                    errors && (errors['BangKQ12.1'] = '');
+                    BangKQ12temp.push(img_src);
+                    break;
+                case 'HocBaBia':
+                    errors && (errors.HocBaBia = '');
+                    setHocBaBia(img_src);
+                    break;
+                case 'ChungNhanTN':
+                    errors && (errors.ChungNhanTN = '');
+                    setChungNhanTN(img_src);
+                    break;
+                case 'ChungNhanUT':
+                    errors && (errors.ChungNhanUT = '');
+                    setChungNhanUT(img_src);
+                    break;
+                default:
+                    return;
+            }
+        }
+        if (type === 'BangKQ12') {
+            setBangKQ12(BangKQ12temp);
+        }
+    };
+    const readFile = (file) => {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                resolve(e.target.result);
+            };
+            reader.readAsDataURL(file);
+        });
     };
 
     const handleCloseForm = e => {
         e.preventDefault();
         e.stopPropagation();
-        setExit(true);
-        if (exit) {
-            formik.resetForm();
+        if (formik.dirty) {
+            setExit(true);
+        } else {
             onCloseForm();
         }
     };
@@ -197,6 +401,7 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
         const yearsHttml = years.map(year => {
             return (
                 <option value={year} selected={formik?.values?.NamTotNghiep === year}
+                    key={year}
                 >
                     {year}
                 </option>
@@ -206,7 +411,7 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
     }
 
     return (
-        <div className={cx('edit-admission')}>
+        <div className={cx('edit-admission')} ref={formContainerRef}>
             <div className={cx('title')}>
                 <h4 className={cx('title-text', 'uppercase text-center py-5')}>Thông tin thí sinh</h4>
                 <span className={cx('close')} onClick={handleCloseForm}>
@@ -219,7 +424,6 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
                         <div className={cx('content-container', 'container')}>
                             <div className={cx('content-container-item')}>
                                 <div className={cx('content-name')}>
-                                    {/* họ đệm */}
                                     <div className={cx('content-infor', 'content-firstName')}>
                                         <label htmlFor='HoDem' className={cx('content-item-label')}>
                                             <span className={cx('text-red-600 mr-1')}>*</span>
@@ -231,18 +435,21 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
                                             id='HoDem'
                                             placeholder='Nhập vào họ đệm'
                                             className={cx('content-item-input')}
-                                            // value={formik.values.HoDem}
-                                            value='Nguyễn Văn'
-                                            onChange={formik.handleChange}
+                                            value={formik?.values?.HoDem}
+                                            onChange={(e) => {
+                                                errors && (errors.HoDem = '');
+                                                formik.handleChange(e);
+                                            }}
                                         />
-                                        {formik.errors.HoDem && formik.touched.HoDem ? (
-                                            <p className={cx('message')}>{formik.errors.HoDem}</p>
-                                        ) : (
+                                        {(formik.errors.HoDem && formik.touched.HoDem) ||
+                                            errors?.HoDem ?
+                                            <p className={cx('message')}>
+                                                {formik.errors.HoDem || errors?.HoTen}
+                                            </p>
+                                            :
                                             <p className={cx('message')}> </p>
-                                        )}
+                                        }
                                     </div>
-
-                                    {/* tên */}
                                     <div className={cx('content-infor', 'content-lastName')}>
                                         <label htmlFor='Ten' className={cx('content-item-label')}>
                                             <span className={cx('text-red-600 mr-1')}>*</span>
@@ -254,19 +461,21 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
                                             id='Ten'
                                             placeholder='Nhập vào tên'
                                             className={cx('content-item-input')}
-                                            // value={formik.values.Ten}
-                                            value='Khiêm'
-                                            onChange={formik.handleChange}
+                                            value={formik?.values?.Ten}
+                                            onChange={(e) => {
+                                                errors && (errors.Ten = '');
+                                                formik.handleChange(e);
+                                            }}
                                         />
-                                        {formik.errors.Ten && formik.touched.Ten ? (
-                                            <p className={cx('message')}>{formik.errors.Ten}</p>
-                                        ) : (
+                                        {(formik.errors.Ten && formik.touched.Ten) || errors?.Ten ?
+                                            <p className={cx('message')}>
+                                                {formik.errors.Ten || errors?.Ten}
+                                            </p>
+                                            :
                                             <p className={cx('message')}> </p>
-                                        )}
+                                        }
                                     </div>
                                 </div>
-
-                                {/* ngày sinh */}
                                 <div className={cx('content-infor', 'content-birthday')}>
                                     <label htmlFor='NgaySinh' className={cx('content-item-label')}>
                                         <span className={cx('text-red-600 mr-1')}>*</span>
@@ -279,17 +488,17 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
                                         dateFormat="dd/MM/yyyy"
                                         dropdownMode="select"
                                         className={cx('content-item-input')}
-                                        placeholderText="DD/MM/YYYY"
-                                        onChange={(date) => setBirthday(date)}
+                                        placeholderText="dd/MM/YYYY"
+                                        onChange={(date) => {
+                                            errors && (errors.NgayThangNamSinh = '');
+                                            setBirthday(date);
+                                        }}
                                     />
-                                    {formik.errors.NgaySinh && formik.touched.NgaySinh ? (
-                                        <p className={cx('message')}>{formik.errors.NgaySinh}</p>
-                                    ) : (
+                                    {errors?.NgayThangNamSinh ?
+                                        <p className={cx('message')}>{errors?.NgayThangNamSinh}</p> :
                                         <p className={cx('message')}> </p>
-                                    )}
+                                    }
                                 </div>
-
-                                {/* giới tính */}
                                 <div className={cx('content-gioiTinhAndDanToc')}>
                                     <div className={cx('content-infor', 'content-grender')}>
                                         <label htmlFor='GioiTinh' className={cx('content-item-label')}>
@@ -300,18 +509,32 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
                                             name='GioiTinh'
                                             id='GioiTinh'
                                             className={cx('content-item-input')}
-                                            onChange={formik.handleChange}>
-                                            <option value='Nam' selected={formik.values.GioiTinh === 'Nam'}>
+                                            defaultValue={formik.values?.GioiTinh}
+                                            value={formik.values.GioiTinh}
+                                            onChange={(e) => {
+                                                errors && (errors.GioiTinh = '');
+                                                formik.handleChange(e)
+                                            }}
+                                        >
+                                            <option value='Nam'
+                                                selected={formik.values?.GioiTinh === 'Nam'}
+                                            >
                                                 Nam
                                             </option>
-                                            <option value='Nữ' selected={formik.values.GioiTinh === 'Nữ'}>
+                                            <option value='Nữ'
+                                                selected={formik.values?.GioiTinh === 'Nữ'}
+                                            >
                                                 Nữ
                                             </option>
                                         </select>
-                                        <p className={cx('message')}> </p>
+                                        {(formik.errors.GioiTinh && formik.touched.GioiTinh) || errors?.GioiTinh ?
+                                            <p className={cx('message')}>
+                                                {formik.errors.GioiTinh || errors?.GioiTinh}
+                                            </p> :
+                                            <p className={cx('message')}> </p>
+                                        }
                                     </div>
 
-                                    {/* dân tộc */}
                                     <div className={cx('content-infor', 'content-dantoc')}>
                                         <label htmlFor='DanToc' className={cx('content-item-label')}>
                                             <span className={cx('text-red-600 mr-1')}>*</span>
@@ -321,23 +544,32 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
                                             name='DanToc'
                                             id='DanToc'
                                             className={cx('content-item-input')}
-                                            onChange={formik.handleChange}>
+                                            value={formik.values?.DanToc}
+                                            defaultValue={formik.values?.DanToc}
+                                            onChange={(e) => {
+                                                errors && (errors.DanToc = '');
+                                                formik.handleChange(e);
+                                            }}
+                                        >
                                             {nationList.map(nation => {
                                                 return (
                                                     <option
                                                         value={nation?.tenDanToc}
                                                         key={nation?.ma}
-                                                        selected={formik.values.DanToc === nation?.tenDanToc}>
+                                                        selected={formik.values?.DanToc === nation?.tenDanToc}>
                                                         {nation?.tenDanToc}
                                                     </option>
                                                 );
                                             })}
                                         </select>
-                                        <p className={cx('message')}> </p>
+                                        {(formik.errors.DanToc && formik.touched.DanToc) || errors?.DanToc ?
+                                            <p className={cx('message')}>
+                                                {formik.errors.DanToc || errors?.DanToc}
+                                            </p> :
+                                            <p className={cx('message')}> </p>
+                                        }
                                     </div>
                                 </div>
-
-                                {/* chứng minh nhân dân/ căn cước công dân */}
                                 <div className={cx('content-infor', 'content-CCCD')}>
                                     <label htmlFor='CCCD' className={cx('content-item-label')}>
                                         <span className={cx('text-red-600 mr-1')}>*</span>
@@ -349,17 +581,19 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
                                         id='CCCD'
                                         placeholder='Nhập vào CMND/CCCD'
                                         className={cx('content-item-input')}
-                                        value='82834823482348'
-                                        onChange={formik.handleChange}
+                                        value={formik.values?.CCCD}
+                                        onChange={(e) => {
+                                            errors && (errors.CCCD = '');
+                                            formik.handleChange(e);
+                                        }}
                                     />
-                                    {formik.errors.CCCD && formik.touched.CCCD ? (
-                                        <p className={cx('message')}>{formik.errors.CCCD}</p>
-                                    ) : (
+                                    {(formik.errors.CCCD && formik.touched.CCCD) || errors?.CCCD ?
+                                        <p className={cx('message')}>
+                                            {formik.errors.CCCD || errors?.CCCD}
+                                        </p> :
                                         <p className={cx('message')}> </p>
-                                    )}
+                                    }
                                 </div>
-
-                                {/* email */}
                                 <div className={cx('content-infor', 'content-email')}>
                                     <label htmlFor='Email' className={cx('content-item-label')}>
                                         <span className={cx('text-red-600 mr-1')}>*</span>
@@ -371,18 +605,19 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
                                         id='Email'
                                         placeholder='Nhập vào địa chỉ email'
                                         className={cx('content-item-input')}
-                                        // value={formik.values.Email}
-                                        value='khiem124@gmail.com'
-                                        onChange={formik.handleChange}
+                                        value={formik.values?.Email}
+                                        onChange={(e) => {
+                                            errors && (errors.Email = '');
+                                            formik.handleChange(e);
+                                        }}
                                     />
-                                    {formik.errors.Email && formik.touched.Email ? (
-                                        <p className={cx('message')}>{formik.errors.Email}</p>
-                                    ) : (
+                                    {(formik.errors.Email && formik.touched.Email) || errors?.Email ?
+                                        <p className={cx('message')}>
+                                            {formik.errors.Email || errors?.Email}
+                                        </p> :
                                         <p className={cx('message')}> </p>
-                                    )}
+                                    }
                                 </div>
-
-                                {/* số điện thoại */}
                                 <div className={cx('content-infor', 'content-phone')}>
                                     <label htmlFor='SDT' className={cx('content-item-label')}>
                                         <span className={cx('text-red-600 mr-1')}>*</span>
@@ -394,19 +629,21 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
                                         id='SDT'
                                         placeholder='Nhập vào số điện thoại'
                                         className={cx('content-item-input')}
-                                        // values={formik.values.SDT}
-                                        value='0987652732'
-                                        onChange={formik.handleChange}
+                                        value={formik.values?.SDT}
+                                        onChange={(e) => {
+                                            errors && (errors.SDT = '');
+                                            formik.handleChange(e);
+                                        }}
                                     />
-                                    {formik.errors.SDT && formik.touched.SDT ? (
-                                        <p className={cx('message')}>{formik.errors.SDT}</p>
-                                    ) : (
+                                    {(formik.errors.SDT && formik.touched.SDT) || errors?.Email ?
+                                        <p className={cx('message')}>
+                                            {formik.errors.SDT || errors?.Email}
+                                        </p>
+                                        :
                                         <p className={cx('message')}> </p>
-                                    )}
+                                    }
                                 </div>
                             </div>
-
-                            {/* hộ khẩu thường trú */}
                             <div className={cx('content-container-item', 'content-full', 'mt-6')}>
                                 <div className={cx('content-infor', 'content-hometown')}>
                                     <label htmlFor='Tinh' className={cx('content-item-label')}>
@@ -419,8 +656,11 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
                                                 name='MaTinh'
                                                 id='Tinh'
                                                 className={cx('content-item-input')}
+                                                defaultValue={formik.values?.MaTinh}
                                                 onChange={(e) => {
-                                                    formik.values.MaHuyen = ''
+                                                    errors && (errors.MaTinh = '');
+                                                    formik.values.MaQuanHuyen = ''
+                                                    formik.values.MaPhuongXa = '';
                                                     formik.handleChange(e)
                                                 }}
                                             >
@@ -431,26 +671,36 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
                                                 </option>
                                                 {cityList.map(city => {
                                                     return (
-                                                        <option value={city?.ma} key={city?.ma}>
+                                                        <option value={city?.ma} key={city?.ma}
+                                                            selected={formik.values?.MaTinh === city?.ma}
+                                                        >
                                                             {city?.tenDonVi}
                                                         </option>
                                                     );
                                                 })}
                                             </select>
-                                            <p className={cx('message')}> </p>
+                                            {(formik.errors.MaTinh && formik.touched.MaTinh) || errors?.MaTinh ?
+                                                <p className={cx('message')}>
+                                                    {formik.errors.MaTinh || errors?.MaTinh}
+                                                </p> :
+                                                <p className={cx('message')}> </p>
+                                            }
                                         </div>
                                         <div className={cx('content-howtel-huyen')}>
                                             <select
-                                                name='MaHuyen'
+                                                name='MaQuanHuyen'
                                                 id='Huyen'
                                                 className={cx('content-item-input')}
+                                                defaultValue={formik.values?.MaQuanHuyen}
+                                                value={formik.values.MaQuanHuyen}
                                                 onChange={(e) => {
-                                                    formik.values.MaXa = '';
+                                                    errors && (errors.MaQuanHuyen = '');
+                                                    formik.values.MaPhuongXa = '';
                                                     formik.handleChange(e)
                                                 }}
                                             >
                                                 <option value=''
-                                                    selected={formik?.values?.MaHuyen === ''}
+                                                    selected={formik?.values?.MaQuanHuyen === ''}
                                                 >
                                                     Chọn Quận / Huyện
                                                 </option>
@@ -459,23 +709,36 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
                                                         <option
                                                             value={district?.ma}
                                                             key={district?.ma}
+                                                            selected={formik.values?.MaQuanHuyen === district?.ma}
                                                         >
                                                             {district?.tenDonVi}
                                                         </option>
                                                     );
                                                 })}
                                             </select>
-                                            <p className={cx('message')}> </p>
+                                            {(formik.errors.MaQuanHuyen && formik.touched.MaQuanHuyen) ||
+                                                errors?.MaQuanHuyen ?
+                                                <p className={cx('message')}>
+                                                    {formik.errors.MaQuanHuyen || errors?.MaQuanHuyen}
+                                                </p> :
+                                                <p className={cx('message')}> </p>
+                                            }
                                         </div>
                                         <div className={cx('content-howtel-xa')}>
                                             <select
-                                                name='MaXa'
+                                                name='MaPhuongXa'
                                                 id='Xa'
                                                 className={cx('content-item-input')}
-                                                onChange={formik.handleChange}>
+                                                defaultValue={formik.values?.MaPhuongXa}
+                                                value={formik.values?.MaPhuongXa}
+                                                onChange={(e) => {
+                                                    errors && (errors.MaPhuongXa = '');
+                                                    formik.handleChange(e);
+                                                }}
+                                            >
                                                 <option
                                                     value=''
-                                                    selected={formik?.values?.MaXa === ''}
+                                                    selected={formik?.values?.MaPhuongXa === ''}
                                                 >
                                                     Chọn xã
                                                 </option>
@@ -484,13 +747,20 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
                                                         <option
                                                             value={commune?.ma}
                                                             key={commune?.ma}
+                                                            selected={formik?.values?.MaPhuongXa === commune?.ma}
                                                         >
                                                             {commune?.tenDonVi}
                                                         </option>
                                                     );
                                                 })}
                                             </select>
-                                            <p className={cx('message')}> </p>
+                                            {(formik.errors.MaPhuongXa && formik.touched.MaPhuongXa) ||
+                                                errors?.MaPhuongXa ?
+                                                <p className={cx('message')}>
+                                                    {formik.errors.MaPhuongXa || errors?.MaPhuongXa}
+                                                </p> :
+                                                <p className={cx('message')}> </p>
+                                            }
                                         </div>
                                     </div>
                                     <div className={cx('content-infor', 'content-howtel-address', 'mt-6')}>
@@ -500,15 +770,18 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
                                             id='address'
                                             placeholder='Nhập vào địa chỉ liên hệ'
                                             className={cx('content-item-input')}
-                                            // value={formik.values.DiaChi}
-                                            value='Thị trấn pháo hoa - vườn xuân - Bầu trời'
-                                            onChange={formik.handleChange}
+                                            value={formik.values.DiaChi}
+                                            onChange={(e) => {
+                                                errors && (errors.DiaChi = '');
+                                                formik.handleChange(e);
+                                            }}
                                         />
-                                        {formik.errors.DiaChi && formik.touched.DiaChi ? (
-                                            <p className={cx('message')}>{formik.errors.DiaChi}</p>
-                                        ) : (
+                                        {(formik.errors.DiaChi && formik.touched.DiaChi) || errors?.DiaChi ?
+                                            <p className={cx('message')}>
+                                                {formik.errors.DiaChi || errors?.DiaChi}
+                                            </p> :
                                             <p className={cx('message')}> </p>
-                                        )}
+                                        }
                                     </div>
                                 </div>
                             </div>
@@ -524,8 +797,6 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
                             </h4>
                             <span className={cx('flex-1')}></span>
                         </div>
-
-                        {/* thành phố */}
                         <div className={cx('content-container', 'container')}>
                             <div className={cx('content-container-item')}>
                                 <div className={cx('content-infor')}>
@@ -534,31 +805,45 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
                                         Thành phố / Tỉnh
                                     </label>
                                     <select
+                                        name='MaTinhTruong'
                                         id='thpt/thanhpho'
                                         className={cx('content-item-input')}
+                                        defaultValue={formik.values.MaTinhTruong}
+                                        value={formik.values?.MaTinhTruong}
                                         onChange={(e) => {
-                                            setMaTinhTHPT(e.target.value);
+                                            errors && (errors.MaTinhTruong = '');
+                                            formik.values.MaQuanHuyenTruong = '';
+                                            formik.handleChange(e);
                                             setTruongTHPT(null);
-                                            setMaHuyenTHPT('');
                                         }}
                                     >
                                         <option
                                             value=''
-                                            selected={maTinhTHPT === ''}
+                                            selected={formik.values.MaTinhTruong === ''}
                                         >
                                             Chọn Tỉnh / Thành Phố
                                         </option>
                                         {
                                             citysOfSchool.map(city => {
                                                 return (
-                                                    <option value={city?.maTinh}>
+                                                    <option
+                                                        value={city?.maTinh}
+                                                        key={city?.maTinh}
+                                                        selected={formik.values.MaTinhTruong === city?.maTinh}
+                                                    >
                                                         {city?.tenTinhTP}
                                                     </option>
                                                 )
                                             })
                                         }
                                     </select>
-                                    <p className={cx('message')}> </p>
+                                    {(formik.errors.MaTinhTruong && formik.touched.MaTinhTruong) ||
+                                        errors?.MaTinhTruong ?
+                                        <p className={cx('message')}>
+                                            {formik.errors.MaTinhTruong || errors?.MaTinhTruong}
+                                        </p> :
+                                        <p className={cx('message')}> </p>
+                                    }
                                 </div>
                                 <div className={cx('content-infor')}>
                                     <label htmlFor='thpt/huyen' className={cx('content-item-label')}>
@@ -567,24 +852,37 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
                                     </label>
                                     <select
                                         id='thpt/huyen'
+                                        name='MaQuanHuyenTruong'
                                         className={cx('content-item-input')}
+                                        defaultValue={formik.values?.MaQuanHuyenTruong}
+                                        value={formik.values?.MaQuanHuyenTruong}
                                         onChange={(e) => {
-                                            setTruongTHPT(null)
-                                            setMaHuyenTHPT(e.target.value)
+                                            errors && (errors.MaQuanHuyenTruong = '');
+                                            formik.handleChange(e);
+                                            setTruongTHPT(null);
                                         }}
                                     >
-                                        <option value='' selected={MaHuyenTHPT === ''}>
+                                        <option value='' selected={formik.values?.MaQuanHuyenTruong === ''}>
                                             Chọn Quận / Huyện
                                         </option>
                                         {districtsOfSchool.map((district) => {
                                             return (
-                                                <option value={district?.maQH}>
+                                                <option value={district?.maQH}
+                                                    key={district?.maQH}
+                                                    selected={formik.values?.MaQuanHuyenTruong === district?.maQH}
+                                                >
                                                     {district?.tenQH}
                                                 </option>
                                             )
                                         })}
                                     </select>
-                                    <p className={cx('message')}></p>
+                                    {(formik.errors.MaQuanHuyenTruong && formik.touched.MaQuanHuyenTruong) ||
+                                        errors?.MaQuanHuyenTruong ?
+                                        <p className={cx('message')}>
+                                            {formik.errors.MaQuanHuyenTruong || errors?.MaQuanHuyenTruong}
+                                        </p> :
+                                        <p className={cx('message')}> </p>
+                                    }
                                 </div>
                                 <div className={cx('content-infor')}>
                                     <label htmlFor='Truong' className={cx('content-item-label')}>
@@ -595,8 +893,12 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
                                         name='Truong'
                                         id='Truong'
                                         className={cx('content-item-input')}
+                                        defaultValue={null}
                                         onChange={(e) => {
+                                            errors && (errors.TenTruong = '');
+                                            errors && (errors.KhuVucUT = '');
                                             let value = JSON.parse(e.target.value);
+                                            formik.values.TenTruong = value.tenTruong;
                                             setTruongTHPT(value);
                                         }}
                                     >
@@ -608,18 +910,23 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
                                                 <option
                                                     key={school.maTruong}
                                                     value={JSON.stringify({
-                                                        ma: school.maTruong,
-                                                        name: school.tenTruong,
+                                                        tenTruong: school.tenTruong,
                                                         khuVucUT: school.khuVuc,
                                                     })}
-                                                    selected={TruongTHPT?.name === school.tenTruong}
+                                                    selected={TruongTHPT?.tenTruong === school.tenTruong}
                                                 >
                                                     {school.tenTruong}
                                                 </option>
                                             );
                                         })}
                                     </select>
-                                    <p className={cx('message')}> </p>
+                                    {(formik.errors.TenTruong && formik.touched.TenTruong) ||
+                                        errors?.TenTruong ?
+                                        <p className={cx('message')}>
+                                            {formik.errors.TenTruong || errors?.TenTruong}
+                                        </p> :
+                                        <p className={cx('message')}> </p>
+                                    }
                                 </div>
                                 <div className={cx('content-infor')}>
                                     <label htmlFor='DoiTuongUT' className={cx('content-item-label')}>
@@ -630,7 +937,12 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
                                         name='DoiTuongUT'
                                         id='DoiTuongUT'
                                         className={cx('content-item-input')}
-                                        onChange={formik.handleChange}
+                                        defaultValue={formik.values?.DoiTuongUT}
+                                        value={formik.values?.DoiTuongUT}
+                                        onChange={(e) => {
+                                            errors && (errors.DoiTuongUt = '');
+                                            formik.handleChange(e);
+                                        }}
                                     >
                                         <option value="" selected={formik.values.DoiTuongUT === ''}>
                                             Không thuộc diện ưu tiên
@@ -657,7 +969,13 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
                                             07
                                         </option>
                                     </select>
-                                    <p className={cx('message')}></p>
+                                    {(formik.errors.DoiTuongUT && formik.touched.DoiTuongUT) ||
+                                        errors?.DoiTuongUT ?
+                                        <p className={cx('message')}>
+                                            {formik.errors.DoiTuongUT || errors?.DoiTuongUT}
+                                        </p> :
+                                        <p className={cx('message')}> </p>
+                                    }
                                 </div>
                                 <div className={cx('content-infor')}>
                                     <label htmlFor='KhuVucUT' className={cx('content-item-label')}>
@@ -667,19 +985,38 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
                                     <p id="KhuVucUT" className={cx('content-item-input', 'disable')}>
                                         {TruongTHPT ? TruongTHPT.khuVucUT : 'Vui lòng chọn trường'}
                                     </p>
-                                    <p className={cx('message')}></p>
+                                    {errors?.KhuVucUT ?
+                                        <p className={cx('message')}>
+                                            {formik.errors?.KhuVucUT || errors?.KhuVucUT}
+                                        </p> :
+                                        <p className={cx('message')}> </p>
+                                    }
                                 </div>
                                 <div className={cx('content-infor')}>
                                     <label htmlFor='NamTotNghiep' className={cx('content-item-label')}>
                                         <span className={cx('text-red-600 mr-1')}>*</span>
                                         Năm tốt nghiệp
                                     </label>
-                                    <select name='NamTotNghiep' id='NamTotNghiep' className={cx('content-item-input')}>
+                                    <select name='NamTotNghiep'
+                                        defaultValue={formik.values.NamTotNghiep}
+                                        id='NamTotNghiep'
+                                        className={cx('content-item-input')}
+                                        onChange={(e) => {
+                                            errors && (errors.NamTotNghiep = '');
+                                            formik.handleChange(e);
+                                        }}
+                                    >
                                         {
                                             handleShowNamTotNghiep()
                                         }
                                     </select>
-                                    <p className={cx('message')}></p>
+                                    {(formik.errors.NamTotNghiep && formik.touched.NamTotNghiep) ||
+                                        errors?.NamTotNghiep ?
+                                        <p className={cx('message')}>
+                                            {formik.errors.NamTotNghiep || errors?.NamTotNghiep}
+                                        </p> :
+                                        <p className={cx('message')}> </p>
+                                    }
                                 </div>
                             </div>
                             <div className={cx('content-container-item', 'content-full', 'mt-6')}>
@@ -693,18 +1030,32 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
                                             name='HinhThuc'
                                             id='HinhThuc'
                                             className={cx('content-item-input')}
+                                            defaultValue={formik.values?.HinhThuc}
                                             value={formik.values.HinhThuc}
-                                            onChange={formik.handleChange}>
-                                            <option value=''>Xét tuyển bằng học bạ THPT</option>
+                                            onChange={(e) => {
+                                                errors && (errors.HinhThuc = '');
+                                                formik.handleChange(e);
+                                            }}
+                                        >
+                                            <option value=''
+                                                selected={formik.values?.HinhThuc === ' Xét tuyển bằng học bạ THPT'}
+                                            >
+                                                Xét tuyển bằng học bạ THPT
+                                            </option>
                                         </select>
-                                        <p className={cx('message')}></p>
+                                        {(formik.errors.HinhThuc && formik.touched.HinhThuc) ||
+                                            errors?.HinhThuc ?
+                                            <p className={cx('message')}>
+                                                {formik.errors.HinhThuc || errors?.HinhThuc}
+                                            </p> :
+                                            <p className={cx('message')}> </p>
+                                        }
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    {/* kết quả học tập */}
                     <div className={cx('content-item')}>
                         <div className={cx('content-item-title', 'flex items-center')}>
                             <span className={cx('flex-1')}></span>
@@ -726,16 +1077,21 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
                                                 id='DiemMon1'
                                                 name='DiemMon1'
                                                 className={cx('content-item-input')}
-                                                placeholder='0.0'
-                                                value={formik.values.DiemMon1}
-                                                onChange={formik.handleChange}
+                                                placeholder='0.00'
+                                                value={formik.values?.DiemMon1}
+                                                onChange={(e) => {
+                                                    errors && (errors.DiemMon1 = '');
+                                                    formik.handleChange(e);
+                                                }}
                                             />
                                         </div>
-                                        {formik.errors.DiemMon1 && formik.touched.DiemMon1 ? (
-                                            <p className={cx('message')}>{formik.errors.DiemMon1}</p>
-                                        ) : (
-                                            <p className={cx('message')}></p>
-                                        )}
+                                        {(formik.errors.DiemMon1 && formik.touched.DiemMon1) ||
+                                            errors?.DiemMon1 ?
+                                            <p className={cx('message')}>
+                                                {formik.errors.DiemMon1 || errors?.DiemMon1}
+                                            </p> :
+                                            <p className={cx('message')}> </p>
+                                        }
                                     </div>
                                     <div className={cx('content-infor', 'content-scores-item')}>
                                         <div className={cx('content-infor-group')}>
@@ -747,16 +1103,21 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
                                                 id='DiemMon2'
                                                 name='DiemMon2'
                                                 className={cx('content-item-input')}
-                                                placeholder='0.0'
-                                                value={formik.values.DiemMon2}
-                                                onChange={formik.handleChange}
+                                                placeholder='0.00'
+                                                value={formik.values?.DiemMon2}
+                                                onChange={(e) => {
+                                                    errors && (errors.DiemMon2 = '');
+                                                    formik.handleChange(e);
+                                                }}
                                             />
                                         </div>
-                                        {formik.errors.DiemMon2 && formik.touched.DiemMon2 ? (
-                                            <p className={cx('message')}>{formik.errors.DiemMon2}</p>
-                                        ) : (
-                                            <p className={cx('message')}></p>
-                                        )}
+                                        {(formik.errors.DiemMon2 && formik.touched.DiemMon2) ||
+                                            errors?.DiemMon2 ?
+                                            <p className={cx('message')}>
+                                                {formik.errors.DiemMon2 || errors?.DiemMon2}
+                                            </p> :
+                                            <p className={cx('message')}> </p>
+                                        }
                                     </div>
                                 </div>
                                 <div className={cx('content-scores')}>
@@ -768,13 +1129,22 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
                                             </label>
                                             <input
                                                 className={cx('content-item-input')}
-                                                placeholder='0.0'
-                                                value='7.0'
+                                                placeholder='0.00'
+                                                value={formik.values?.DiemMon3}
                                                 name='DiemMon3'
-                                                onChange={formik.handleChange}
+                                                onChange={(e) => {
+                                                    errors && (errors.DiemMon3 = '');
+                                                    formik.handleChange(e);
+                                                }}
                                             />
                                         </div>
-                                        <p className={cx('message')}></p>
+                                        {(formik.errors.DiemMon3 && formik.touched.DiemMon3) ||
+                                            errors?.DiemMon3 ?
+                                            <p className={cx('message')}>
+                                                {formik.errors.DiemMon3 || errors?.DiemMon3}
+                                            </p> :
+                                            <p className={cx('message')}> </p>
+                                        }
                                     </div>
                                     <div className={cx('content-infor', 'content-scores-item')}>
                                         <div className={cx('content-infor-group')}>
@@ -782,7 +1152,13 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
                                                 <span className={cx('text-red-600 mr-1')}>*</span>
                                                 Điểm trung bình:
                                             </label>
-                                            <p className={cx('content-item-input')}>6.67</p>
+                                            <p
+                                                className={cx('content-item-input',
+                                                    'justify-center w-full'
+                                                )}
+                                            >
+                                                {diemTB.toFixed(2)}
+                                            </p>
                                         </div>
                                         <p className={cx('message')}></p>
                                     </div>
@@ -791,7 +1167,6 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
                         </div>
                     </div>
 
-                    {/* ngành xét tuyển */}
                     <div className={cx('content-item')}>
                         <div className={cx('content-item-title', 'flex items-center')}>
                             <span className={cx('flex-1')}></span>
@@ -808,23 +1183,42 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
                                         </label>
                                         <select
                                             id='nganh'
-                                            name='MaNganh'
+                                            name='Nganh_ID'
                                             className={cx('content-item-input')}
                                             placeholder='Tùy chọn ngành xét tuyển'
-                                            onChange={formik.handleChange}>
-                                            <option value=''>Tùy chọn ngành xét tuyển</option>
-                                            <option value='' selected>
-                                                Công nghệ thông tin
+                                            defaultValue={formik.values?.Nganh_ID}
+                                            value={formik.values?.Nganh_ID}
+                                            onChange={(e) => {
+                                                errors && (errors.Nganh_ID = '');
+                                                formik.handleChange(e);
+                                            }}>
+                                            <option value='' selected={formik.values?.Nganh_ID === ''}>
+                                                Tùy chọn ngành xét tuyển
                                             </option>
+                                            {majorList.map((major) => {
+                                                return (
+                                                    <option value={major?.id}
+                                                        key={major?.id}
+                                                        selected={major?.id === formik.values?.Nganh_ID}
+                                                    >
+                                                        {major.TenNganh}
+                                                    </option>
+                                                )
+                                            })}
                                         </select>
                                     </div>
-                                    <p className={cx('message')}></p>
+                                    {(formik.errors.Nganh_ID && formik.touched.Nganh_ID) ||
+                                        errors?.Nganh_ID ?
+                                        <p className={cx('message')}>
+                                            {formik.errors.Nganh_ID || errors?.Nganh_ID}
+                                        </p> :
+                                        <p className={cx('message')}> </p>
+                                    }
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    {/* danh sách minh chứng kèm theo */}
                     <div className={cx('content-item')}>
                         <div className={cx('content-item-title', 'flex items-center')}>
                             <span className={cx('flex-1')}></span>
@@ -851,12 +1245,30 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
                                         <td>
                                             <div className={cx('content-images-group')}>
                                                 <div className={cx('content-images-list')} id='img-container'>
-                                                    <Image
-                                                        src='/'
-                                                        className={cx('content-images-item', 'empty')}
-                                                        alt='ảnh học bạ'
-                                                    />
+                                                    {BangKQ12?.length > 0 ?
+                                                        BangKQ12?.map((img, index) => {
+                                                            return (
+                                                                <Image src={img}
+                                                                    className={cx('content-images-item')}
+                                                                    onClick={() => openModal(img)}
+                                                                    alt={'img-1' + index}
+                                                                    key={index} />
+                                                            )
+                                                        }) :
+                                                        <NoImage
+                                                            className={cx('content-images-item', 'empty')}
+                                                        />
+                                                    }
                                                 </div>
+                                                {errors?.['BangKQ12.0'] || errors?.['BangKQ12.1'] ?
+                                                    <p className={cx('message')}>
+                                                        {
+                                                            errors?.['BangKQ12.0'] ||
+                                                            errors?.['BangKQ12.1']
+                                                        }
+                                                    </p> :
+                                                    <p className={cx('message')}> </p>
+                                                }
                                                 <label htmlFor='BangKQ12' className={cx('content-btn', 'btn-upload')}>
                                                     <span className={cx('content-btn-icon')}>
                                                         <UploadIcon />
@@ -883,12 +1295,24 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
                                         <td>
                                             <div className={cx('content-images-group')}>
                                                 <div className={cx('content-images-list')} id='img-container'>
-                                                    <Image
-                                                        src='/'
-                                                        className={cx('content-images-item', 'empty')}
-                                                        alt='ảnh bìa học bạ'
-                                                    />
+                                                    {HocBaBia ?
+                                                        <Image src={HocBaBia}
+                                                            className={cx('content-images-item')}
+                                                            alt='img-1'
+                                                            onClick={() => openModal(HocBaBia)}
+                                                        />
+                                                        :
+                                                        <NoImage
+                                                            className={cx('content-images-item', 'empty')}
+                                                        />
+                                                    }
                                                 </div>
+                                                {errors?.HocBaBia ?
+                                                    <p className={cx('message')}>
+                                                        {errors?.HocBaBia}
+                                                    </p> :
+                                                    <p className={cx('message')}> </p>
+                                                }
                                                 <label htmlFor='HocBaBia' className={cx('content-btn', 'btn-upload')}>
                                                     <span className={cx('content-btn-icon')}>
                                                         <UploadIcon />
@@ -914,12 +1338,24 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
                                         <td>
                                             <div className={cx('content-images-group')}>
                                                 <div className={cx('content-images-list')} id='img-container'>
-                                                    <Image
-                                                        src='/'
-                                                        className={cx('content-images-item', 'empty')}
-                                                        alt='ảnh bằng tốt nghiệp'
-                                                    />
+                                                    {ChungNhanTN ?
+                                                        <Image src={ChungNhanTN}
+                                                            className={cx('content-images-item')}
+                                                            alt='img-1'
+                                                            onClick={() => openModal(ChungNhanTN)}
+                                                        />
+                                                        :
+                                                        <NoImage
+                                                            className={cx('content-images-item', 'empty')}
+                                                        />
+                                                    }
                                                 </div>
+                                                {errors?.ChungNhanTN ?
+                                                    <p className={cx('message')}>
+                                                        {errors?.ChungNhanTN}
+                                                    </p> :
+                                                    <p className={cx('message')}> </p>
+                                                }
                                                 <label
                                                     htmlFor='ChungNhanTN'
                                                     className={cx('content-btn', 'btn-upload')}>
@@ -947,12 +1383,24 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
                                         <td>
                                             <div className={cx('content-images-group')}>
                                                 <div className={cx('content-images-list')} id='img-container'>
-                                                    <Image
-                                                        src='/'
-                                                        className={cx('content-images-item', 'empty')}
-                                                        alt='Ảnh chứng nhận ưu tiên'
-                                                    />
+                                                    {ChungNhanUT ?
+                                                        <Image src={ChungNhanUT}
+                                                            className={cx('content-images-item')}
+                                                            alt='img-1'
+                                                            onClick={() => openModal(ChungNhanUT)}
+                                                        />
+                                                        :
+                                                        <NoImage
+                                                            className={cx('content-images-item', 'empty')}
+                                                        />
+                                                    }
                                                 </div>
+                                                {errors?.ChungNhanUT ?
+                                                    <p className={cx('message')}>
+                                                        {errors?.ChungNhanUT}
+                                                    </p> :
+                                                    <p className={cx('message')}> </p>
+                                                }
                                                 <label
                                                     htmlFor='ChungNhanUT'
                                                     className={cx('content-btn', 'btn-upload')}>
@@ -976,8 +1424,6 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
                             </table>
                         </div>
                     </div>
-
-                    {/* button quay lại và lưu */}
                     <div className={cx('content-container', 'content-group-button')}>
                         <Button className={cx('btn-back')} outline onClick={handleCloseForm}>
                             Quay lại
@@ -987,19 +1433,50 @@ function FormEditAdmissionProfile({ maHS, onCloseForm }) {
                 </form>
             </main>
 
-            {/* modal exit */}
-            <ModalAlert
-                message='Bạn có chắc chắn muốn thoát không ?'
-                enabled={exit}
-                onClose={() => {
-                    setExit(false);
-                }}
-                onAccepted={() => {
-                    setExit(false);
-                    onCloseForm();
+            {!dataUpdated &&
+                <ModalAlert
+                    message='Bạn có chắc chắn muốn thoát không ?'
+                    enabled={exit}
+                    onClose={() => {
+                        setExit(false);
+                    }}
+                    onAccepted={() => {
+                        setExit(false);
+                        onCloseForm();
+                    }}
+                />
+            }
+
+            {
+                modalImgSrc && (
+                    <div ref={modalContainerRef} className={cx('modal')}>
+                        <div className={cx('modal-container-img')}>
+                            <img className={cx('modal-img')} src={modalImgSrc} alt="img ảnh" />
+                            <div className={cx('btn')}>
+                                <button className={cx('btn-close')} onClick={closeModal}>
+                                    &times;
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+            <ModalAlertOneButton
+                message={messResp}
+                enabled={responsed}
+                onClick={() => {
+                    setResponsed(false)
                 }}
             />
-        </div>
+            <ModalAlertOneButton
+                message={'Cập nhật thông tin hồ sơ thành công!'}
+                enabled={dataUpdated}
+                onClick={() => {
+                    setResponsed(false)
+                    onCloseForm(true)
+                }}
+            />
+        </div >
     );
 }
 

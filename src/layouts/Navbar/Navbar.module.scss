@@ -30,10 +30,11 @@
     display: none;
     position: absolute;
     top: 100%;
-    border: 1px solid #ccc;
-    padding: 8px;
+    left: 0;
+    right: 0;
+    border: 1px solid #fff;
     z-index: 99;
-    background-color: #fff;
+    background-color: #034da2ab;
     border-radius: 4px;
 
     &::before {
@@ -47,7 +48,7 @@
     }
 }
 
-.navbar-account-item {
+.navbar-account {
     position: relative;
 
     &:hover>.navbar-account-menu {
@@ -55,6 +56,10 @@
     }
 }
 
-.btn-logout:hover {
-    color: var(--primary-color);
+.navbar-account-btn:hover {
+    background-color: var(--whitecolor);
+}
+
+.navbar-account-item {
+    color: var(--white-color);
 }

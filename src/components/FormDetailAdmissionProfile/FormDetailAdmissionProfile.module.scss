@@ -22,6 +22,9 @@
     }
 }
 
+.Image_wrapper__CtBA7 {
+    cursor: pointer;
+}
 
 .title-text {
     font-size: 48px;
@@ -35,7 +38,7 @@
 }
 
 .content-item {
-    padding-top: 24px;
+    // padding-top: 24px;
 
     &:first-child {
         padding-top: 0;
@@ -50,7 +53,9 @@
 .content-item-title .content-item-text {
     font-size: 18px;
     font-weight: 600;
-    color: var(--primary-color)
+    color: var(--primary-color);
+    margin-right: 0.5rem;
+    
 }
 
 .content-container {
@@ -118,7 +123,7 @@
     border: 1px solid #ccc;
     border-radius: 4px;
     padding-left: 12px;
-    color: #000;
+    color: #ff6600;
 
     &::placeholder {
         color: #FF6600;
@@ -288,6 +293,9 @@
     }
 }
 
+.content-images-group {
+    cursor: pointer;
+}
 
 .btn-submit {
     background-color: var(--primary-color);
@@ -319,6 +327,70 @@
     &.empty {
         width: 120px;
         height: 120px;
+    }
+}
+
+// Modal
+.modal {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    top: 0;
+    right: 0;
+    left: 0;
+    bottom: 0;
+    cursor: pointer;
+    background-color: rgb(0, 0, 0, 0.25);
+}
+
+.modal-container-img {
+    position: relative;
+    width: calc((100vh - 160px) * 16 / 9);
+    height: calc(100vh - 160px);
+    aspect-ratio: 16 / 9;
+    animation: zoom 0.5s ease-in-out;
+
+    &>.modal-img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+}
+
+
+.btn {
+    position: absolute;
+    right: 8px;
+    top: 8px;
+}
+
+.btn-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    color: red;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 24px;
+    background: #fff;
+    border: 2px solid red;
+}
+
+.btn-close:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+@keyframes zoom {
+    from {
+        transform: scale(0.8);
+    }
+
+    to {
+        transform: scale(1);
     }
 }
 

@@ -1,10 +1,17 @@
 import classnames from 'classnames/bind';
+import { useState } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
+
+import { createAxios } from '~/utils';
+import { Menu, Button, LoadingLine } from '~/components';
+import { userSelector, logOutSuccess, loginSuccess } from '~/store';
 import {
     HomeIcon, ListIcon, CheckSquareIcon, FileMinusIcon,
     ChevronDownIcon, BarChart2Icon, PieChartIcon, LogOutIcon, BarChartIcon, FormIcon
 }
     from '~/components/Icon';
-import { Menu } from '~/components';
+import { logoutService } from '~/services';
 import styles from './Navbar.module.scss';
 const cx = classnames.bind(styles);
 
@@ -35,19 +42,19 @@ const navbarMenu = {
             children: {
                 data: [
                     {
-                        to: '/statistics-by-month',
+                        to: '/baocaotrungtuyen/thang',
                         title: 'Thống kê, báo cáo theo tháng',
                         iconLeft: <BarChart2Icon />,
                         className: cx('navbar-link'),
                     },
                     {
-                        to: '/statistics-by-year',
+                        to: '/baocaotrungtuyen/nam',
                         title: 'Thống kê, báo cáo theo năm',
                         iconLeft: <PieChartIcon />,
                         className: cx('navbar-link'),
                     },
                     {
-                        to: '/statistics-by-majors',
+                        to: '/baocaotrungtuyen/nganh',
                         title: 'Thống kê theo ngành học',
                         iconLeft: <BarChartIcon />,
                         className: cx('navbar-link'),
@@ -63,34 +70,54 @@ const navbarMenu = {
         }
     ]
 }
-const navbarAccount = {
-    data: [
-        {
-            to: '/profile',
-            title: 'Nguyễn Văn A',
-            iconRight: <ChevronDownIcon />,
-            className: cx('navbar-link'),
-            children: {
-                className: 'menu-account',
-                data: [
-                    {
-                        title: 'Đăng xuất',
-                        className: cx('navbar-link'),
-                        iconLeft: <LogOutIcon />,
-                    },
-                ]
-            }
-        },
-    ]
-}
 
 
 function Navbar() {
+    const dispatch = useDispatch();
+    const navigate = useNavigate();
+    const [loading, setLoading] = useState(false);
+    const user = useSelector(userSelector);
+    const requestJWT = createAxios(user, dispatch, loginSuccess);
+
+    const handleLogout = async () => {
+        setLoading(true);
+        const res = await logoutService(user?.access_token, requestJWT);
+        if (res?.message === 'Đăng xuất thành công') {
+            dispatch(logOutSuccess());
+            navigate('/canbots-login');
+        }
+        setLoading(false);
+    }
+
     return (
-        <nav className={cx('navbar', 'flex justify-between')}>
-            <Menu className={cx('navbar-list', 'flex gap-1')} data={navbarMenu.data} link />
-            <Menu className={cx('navbar-account')} data={navbarAccount.data} />
-        </nav>
+        <>
+            <nav className={cx('navbar', 'flex justify-between')}>
+                <Menu className={cx('navbar-list', 'flex gap-1')} data={navbarMenu.data} link />
+                <div className={cx('navbar-account')}>
+                    {user ?
+                        <>
+                            <Button className={cx('text-white', 'navbar-account-btn')} to='' iconRight={<ChevronDownIcon />}>
+                                {user?.full_name}
+                            </Button>
+                            <ul className={cx('navbar-account-menu')}>
+                                <li>
+                                    <Button className={cx('navbar-account-item')} block
+                                        onClick={handleLogout}
+                                        iconLeft={<LogOutIcon />}
+                                    >
+                                        Đăng xuất
+                                    </Button>
+                                </li>
+                            </ul>
+                        </> :
+                        <Button className={cx('navbar-account-item')} to='/canbots-login'>
+                            Đăng nhập
+                        </Button>
+                    }
+                </div>
+            </nav >
+            <LoadingLine loading={loading} />
+        </>
     );
 }
 

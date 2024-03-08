@@ -2,23 +2,23 @@ import { memo, useState } from 'react';
 import classnames from 'classnames/bind';
 import Proptypes from 'prop-types';
 
+import { getElementParent, formatDate } from '~/utils';
 import { Button, ModalAlert } from '~/components';
-import { getElementParent } from '~/utils';
 import { CheckSquareIcon } from '~/components/Icon';
 
 import styles from './Table.module.scss';
 const cx = classnames.bind(styles);
 
-const Table = ({ className, fields, data, onShowInforDetail, onShowFormEditInfor }) => {
+const Table = ({ className, fields, data, onShowInforDetail, onShowFormEditInfor, onClickDeleting }) => {
     const [deleting, setDeleting] = useState(false);
     const [profileDeleting, setProfileDeleting] = useState('');
+
 
     const handleShowInforDetail = (e) => {
         e.stopPropagation();
         const targetElement = getElementParent(e, cx('table-link'));
         const maHS = targetElement.getAttribute('data-target');
         onShowInforDetail(maHS);
-        console.log(maHS);
     };
 
     const handleShowFormEditInfor = (e) => {
@@ -26,13 +26,11 @@ const Table = ({ className, fields, data, onShowInforDetail, onShowFormEditInfor
         const targetElement = getElementParent(e, cx('btn-edit'));
         const maHS = targetElement.getAttribute('data-target');
         onShowFormEditInfor(maHS);
-        console.log(maHS);
     };
 
     const handleDelInfor = () => {
         // call api tiến hành xóa hồ sơ với mã hồ sơ;
-
-        console.log(profileDeleting);
+        onClickDeleting(profileDeleting);
         setDeleting(false);
     };
 
@@ -40,7 +38,6 @@ const Table = ({ className, fields, data, onShowInforDetail, onShowFormEditInfor
         e.stopPropagation();
         const targetElement = getElementParent(e, cx('btn-delete'));
         const maHS = targetElement.getAttribute('data-target');
-        console.log(maHS);
         setProfileDeleting(maHS);
         setDeleting(true);
     };
@@ -50,6 +47,7 @@ const Table = ({ className, fields, data, onShowInforDetail, onShowFormEditInfor
             <table className={cx(className, 'table')}>
                 <thead>
                     <tr>
+                        <th>STT</th>
                         {fields.map((field, index) => (
                             <th key={index}>{field?.alias}</th>
                         ))}
@@ -62,21 +60,45 @@ const Table = ({ className, fields, data, onShowInforDetail, onShowFormEditInfor
                         data.map((record, index) => {
                             return (
                                 <tr key={index}>
+                                    <td>{index + 1}</td>
                                     {fields.map((field, index) => {
-                                        if (field?.property === 'status' && record[field?.property]) {
+                                        if (field?.property === 'TrangThai' &&
+                                            record?.xet_tuyen[field?.property]) {
                                             return (
                                                 <td key={index} className={cx('table-col', 'status')}>
                                                     <CheckSquareIcon />
                                                 </td>
                                             );
-                                        } else if (field?.property === 'status' && record[field?.property] !== false) {
+                                        }
+                                        if (field?.property === 'TrangThai' &&
+                                            record?.xet_tuyen[field?.property] !== false) {
                                             return (
                                                 <td key={index} className={cx('table-col', 'status', 'status-warning')}>
                                                     Đang chờ
                                                 </td>
                                             );
                                         }
-
+                                        if (field?.property === 'TrangThai' &&
+                                            record?.xet_tuyen[field?.property] === false) {
+                                            return (
+                                                <td key={index} className={cx('table-col', 'status', 'status-error')}>
+                                                    Không trúng tuyển
+                                                </td>
+                                            );
+                                        }
+                                        if (field?.property === 'NganhHoc') {
+                                            return (<td key={index}>{record?.nganh?.TenNganh}</td>)
+                                        }
+                                        if (field?.property === 'NgayNop') {
+                                            return (<td key={index}>{formatDate(record?.NgayNop)}</td>)
+                                        }
+                                        if (field?.property === 'NgayThangNamSinh') {
+                                            return (
+                                                <td key={index}>
+                                                    {formatDate(record?.NgayThangNamSinh)}
+                                                </td>
+                                            )
+                                        }
                                         return <td key={index}>{record[field?.property]}</td>;
                                     })}
                                     <td>
@@ -84,7 +106,7 @@ const Table = ({ className, fields, data, onShowInforDetail, onShowFormEditInfor
                                             onClick={handleShowInforDetail}
                                             className={cx('table-link')}
                                             text
-                                            data-target={record?.profileCode}
+                                            data-target={record?.MaHoSo}
                                         >
                                             Chi tiết
                                         </Button>
@@ -94,7 +116,7 @@ const Table = ({ className, fields, data, onShowInforDetail, onShowFormEditInfor
                                             onClick={handleShowFormEditInfor}
                                             className={cx('btn-edit')}
                                             small
-                                            data-target={record?.profileCode}
+                                            data-target={record?.MaHoSo}
                                         >
                                             Sửa
                                         </Button>
@@ -102,7 +124,7 @@ const Table = ({ className, fields, data, onShowInforDetail, onShowFormEditInfor
                                             className={cx('btn-delete')}
                                             small
                                             onClick={handleShowAlertDelete}
-                                            data-target={record?.profileCode}
+                                            data-target={record?.MaHoSo}
                                         >
                                             Xóa
                                         </Button>
